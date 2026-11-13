@@ -1,310 +1,363 @@
-import aiosqlite
-from config import DB_PATH
+import os
+from motor.motor_asyncio import AsyncIOMotorClient
 
-_db = None
+client = None
+db = None
 
 async def init():
-    global _db
-    _db = await aiosqlite.connect(DB_PATH)
+    global client, db
+    uri = os.getenv("MONGO_URI")
+    if not uri: return
     
-    tables = [
-        "CREATE TABLE IF NOT EXISTS custom_commands (guild_id TEXT, name TEXT, response TEXT, created_by TEXT, PRIMARY KEY (guild_id, name))",
-        "CREATE TABLE IF NOT EXISTS ticket_config (guild_id TEXT PRIMARY KEY, category_id TEXT, staff_role_id TEXT, log_channel_id TEXT)",
-        "CREATE TABLE IF NOT EXISTS tickets (channel_id TEXT PRIMARY KEY, guild_id TEXT, user_id TEXT)",
-        "CREATE TABLE IF NOT EXISTS nickname_config (guild_id TEXT PRIMARY KEY, channel_id TEXT, note_text TEXT)",
-        "CREATE TABLE IF NOT EXISTS sticky_messages (channel_id TEXT PRIMARY KEY, message_id TEXT, content TEXT)",
-        "CREATE TABLE IF NOT EXISTS welcome_config (guild_id TEXT PRIMARY KEY, channel_id TEXT, message TEXT, role_id TEXT)",
-        "CREATE TABLE IF NOT EXISTS giveaways (message_id TEXT PRIMARY KEY, channel_id TEXT, prize TEXT, end_time INTEGER, host_id TEXT, winners INTEGER)",
-        "CREATE TABLE IF NOT EXISTS levels (guild_id TEXT, user_id TEXT, xp INTEGER DEFAULT 0, level INTEGER DEFAULT 0, last_msg INTEGER DEFAULT 0, PRIMARY KEY (guild_id, user_id))",
-        "CREATE TABLE IF NOT EXISTS button_roles (message_id TEXT, role_id TEXT, emoji TEXT, label TEXT, PRIMARY KEY (message_id, role_id))",
-        "CREATE TABLE IF NOT EXISTS automod_config (guild_id TEXT PRIMARY KEY, log_channel TEXT, anti_invite INTEGER, anti_spam INTEGER, anti_caps INTEGER, anti_links INTEGER)",
-        "CREATE TABLE IF NOT EXISTS logging_config (guild_id TEXT PRIMARY KEY, msg_log TEXT, member_log TEXT)",
-        "CREATE TABLE IF NOT EXISTS afk (guild_id TEXT, user_id TEXT, reason TEXT, PRIMARY KEY (guild_id, user_id))",
-        "CREATE TABLE IF NOT EXISTS temp_voice_hub (guild_id TEXT PRIMARY KEY, channel_id TEXT)",
-        "CREATE TABLE IF NOT EXISTS temp_voice_channels (channel_id TEXT PRIMARY KEY, owner_id TEXT)",
-        "CREATE TABLE IF NOT EXISTS trusted_users (channel_id TEXT, user_id TEXT, PRIMARY KEY (channel_id, user_id))",
-        "CREATE TABLE IF NOT EXISTS blocked_users (channel_id TEXT, user_id TEXT, PRIMARY KEY (channel_id, user_id))",
-        "CREATE TABLE IF NOT EXISTS starboard (guild_id TEXT PRIMARY KEY, channel_id TEXT)",
-        "CREATE TABLE IF NOT EXISTS starboard_msgs (original_id TEXT PRIMARY KEY, star_id TEXT)",
-        "CREATE TABLE IF NOT EXISTS reminders (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, channel_id TEXT, end_time INTEGER, text TEXT)",
-        "CREATE TABLE IF NOT EXISTS quotes (id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id TEXT, author TEXT, content TEXT)",
-        "CREATE TABLE IF NOT EXISTS stats (guild_id TEXT, channel_id TEXT, type TEXT)",
-        "CREATE TABLE IF NOT EXISTS bump (guild_id TEXT PRIMARY KEY, end_time INTEGER)",
-        "CREATE TABLE IF NOT EXISTS counting (guild_id TEXT PRIMARY KEY, channel_id TEXT, current_count INTEGER DEFAULT 0, last_user TEXT)",
-        "CREATE TABLE IF NOT EXISTS mention_responders (guild_id TEXT, target_id TEXT, response TEXT, PRIMARY KEY (guild_id, target_id))",
-        "CREATE TABLE IF NOT EXISTS warnings (id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id TEXT, user_id TEXT, mod_id TEXT, reason TEXT)",
-        "CREATE TABLE IF NOT EXISTS temp_roles (guild_id TEXT, user_id TEXT, role_id TEXT, end_time INTEGER)",
-        "CREATE TABLE IF NOT EXISTS suggestions (message_id TEXT PRIMARY KEY, channel_id TEXT, author_id TEXT, text TEXT)",
-        "CREATE TABLE IF NOT EXISTS highlights (guild_id TEXT, user_id TEXT, keyword TEXT, PRIMARY KEY (guild_id, user_id, keyword))",
-        "CREATE TABLE IF NOT EXISTS staff_notes (id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id TEXT, user_id TEXT, author_id TEXT, note TEXT)"
-    ]
-    for t in tables:
-        await _db.execute(t)
-    await _db.commit()
+    client = AsyncIOMotorClient(uri)
+    db = client.astral_bot
+    
+    await db.custom_commands.create_index([("guild_id", 1), ("name", 1)], unique=True)
+    await db.levels.create_index([("guild_id", 1), ("user_id", 1)], unique=True)
+    await db.warnings.create_index([("guild_id", 1), ("user_id", 1)])
+    await db.button_roles.create_index([("message_id", 1), ("role_id", 1)], unique=True)
+    await db.afk.create_index([("guild_id", 1), ("user_id", 1)], unique=True)
+    await db.highlights.create_index([("guild_id", 1), ("user_id", 1), ("keyword", 1)], unique=True)
+    await db.tickets.create_index([("channel_id", 1)], unique=True)
+    await db.giveaways.create_index([("message_id", 1)], unique=True)
 
 # --- Custom Commands ---
 async def save(gid, name, response, uid):
-    await _db.execute("INSERT OR REPLACE INTO custom_commands VALUES (?, ?, ?, ?)", (str(gid), name, response, str(uid)))
-    await _db.commit()
+    await db.custom_commands.update_one(
+        {"guild_id": str(gid), "name": name},
+        {"$set": {"response": response, "created_by": str(uid)}},
+        upsert=True
+    )
 async def get(gid, name):
-    async with _db.execute("SELECT response FROM custom_commands WHERE guild_id = ? AND name = ?", (str(gid), name)) as c:
-        r = await c.fetchone(); return r[0] if r else None
+    doc = await db.custom_commands.find_one({"guild_id": str(gid), "name": name})
+    return doc["response"] if doc else None
 async def delete(gid, name):
-    await _db.execute("DELETE FROM custom_commands WHERE guild_id = ? AND name = ?", (str(gid), name))
-    await _db.commit()
+    await db.custom_commands.delete_one({"guild_id": str(gid), "name": name})
 async def list_all(gid):
-    async with _db.execute("SELECT name, response FROM custom_commands WHERE guild_id = ? ORDER BY name", (str(gid),)) as c:
-        return await c.fetchall()
+    cursor = db.custom_commands.find({"guild_id": str(gid)}).sort("name", 1)
+    return [(doc["name"], doc["response"]) async for doc in cursor]
 
 # --- Tickets ---
 async def set_ticket_config(gid, cat, role, log):
-    await _db.execute("INSERT OR REPLACE INTO ticket_config VALUES (?, ?, ?, ?)", (str(gid), str(cat), str(role), str(log)))
-    await _db.commit()
+    await db.ticket_config.update_one(
+        {"guild_id": str(gid)},
+        {"$set": {"category_id": str(cat), "staff_role_id": str(role), "log_channel_id": str(log)}},
+        upsert=True
+    )
 async def get_ticket_config(gid):
-    async with _db.execute("SELECT category_id, staff_role_id, log_channel_id FROM ticket_config WHERE guild_id = ?", (str(gid),)) as c:
-        return await c.fetchone()
+    doc = await db.ticket_config.find_one({"guild_id": str(gid)})
+    if doc: return (doc["category_id"], doc["staff_role_id"], doc["log_channel_id"])
+    return None
 async def add_ticket(cid, gid, uid):
-    await _db.execute("INSERT INTO tickets VALUES (?, ?, ?)", (str(cid), str(gid), str(uid)))
-    await _db.commit()
+    await db.tickets.update_one(
+        {"channel_id": str(cid)},
+        {"$set": {"guild_id": str(gid), "user_id": str(uid)}},
+        upsert=True
+    )
 async def get_user_ticket(gid, uid):
-    async with _db.execute("SELECT channel_id FROM tickets WHERE guild_id = ? AND user_id = ?", (str(gid), str(uid))) as c:
-        r = await c.fetchone(); return r[0] if r else None
+    doc = await db.tickets.find_one({"guild_id": str(gid), "user_id": str(uid)})
+    return doc["channel_id"] if doc else None
 async def remove_ticket(cid):
-    await _db.execute("DELETE FROM tickets WHERE channel_id = ?", (str(cid),))
-    await _db.commit()
+    await db.tickets.delete_one({"channel_id": str(cid)})
 
 # --- Nicknames ---
 async def set_nickname_channel(gid, cid, note):
-    await _db.execute("INSERT OR REPLACE INTO nickname_config VALUES (?, ?, ?)", (str(gid), str(cid), note))
-    await _db.commit()
+    await db.nickname_config.update_one(
+        {"guild_id": str(gid)},
+        {"$set": {"channel_id": str(cid), "note_text": note}},
+        upsert=True
+    )
 async def get_nickname_config(gid):
-    async with _db.execute("SELECT channel_id, note_text FROM nickname_config WHERE guild_id = ?", (str(gid),)) as c:
-        return await c.fetchone()
+    doc = await db.nickname_config.find_one({"guild_id": str(gid)})
+    if doc: return (doc["channel_id"], doc["note_text"])
+    return None
 async def set_sticky(cid, mid, text):
-    await _db.execute("INSERT OR REPLACE INTO sticky_messages VALUES (?, ?, ?)", (str(cid), str(mid), text))
-    await _db.commit()
+    await db.sticky_messages.update_one(
+        {"channel_id": str(cid)},
+        {"$set": {"message_id": str(mid), "content": text}},
+        upsert=True
+    )
 async def get_sticky(cid):
-    async with _db.execute("SELECT message_id, content FROM sticky_messages WHERE channel_id = ?", (str(cid),)) as c:
-        return await c.fetchone()
+    doc = await db.sticky_messages.find_one({"channel_id": str(cid)})
+    if doc: return (doc["message_id"], doc["content"])
+    return None
 
 # --- Welcome ---
 async def set_welcome(gid, cid, msg, rid):
-    await _db.execute("INSERT OR REPLACE INTO welcome_config VALUES (?, ?, ?, ?)", (str(gid), str(cid), msg, str(rid) if rid else None))
-    await _db.commit()
+    await db.welcome_config.update_one(
+        {"guild_id": str(gid)},
+        {"$set": {"channel_id": str(cid), "message": msg, "role_id": str(rid) if rid else None}},
+        upsert=True
+    )
 async def get_welcome(gid):
-    async with _db.execute("SELECT channel_id, message, role_id FROM welcome_config WHERE guild_id = ?", (str(gid),)) as c:
-        return await c.fetchone()
+    doc = await db.welcome_config.find_one({"guild_id": str(gid)})
+    if doc: return (doc["channel_id"], doc["message"], doc.get("role_id"))
+    return None
 
 # --- Giveaways ---
 async def add_giveaway(mid, cid, prize, end, host, winners):
-    await _db.execute("INSERT INTO giveaways VALUES (?, ?, ?, ?, ?, ?)", (str(mid), str(cid), prize, end, str(host), winners))
-    await _db.commit()
+    await db.giveaways.update_one(
+        {"message_id": str(mid)},
+        {"$set": {"channel_id": str(cid), "prize": prize, "end_time": end, "host_id": str(host), "winners": winners}},
+        upsert=True
+    )
 async def get_giveaways():
-    async with _db.execute("SELECT message_id, channel_id, prize, end_time, host_id, winners FROM giveaways") as c:
-        return await c.fetchall()
+    cursor = db.giveaways.find({})
+    return [(doc["message_id"], doc["channel_id"], doc["prize"], doc["end_time"], doc["host_id"], doc["winners"]) async for doc in cursor]
 async def remove_giveaway(mid):
-    await _db.execute("DELETE FROM giveaways WHERE message_id = ?", (str(mid),))
-    await _db.commit()
+    await db.giveaways.delete_one({"message_id": str(mid)})
 
 # --- Levels ---
 async def get_level_data(gid, uid):
-    async with _db.execute("SELECT xp, level, last_msg FROM levels WHERE guild_id = ? AND user_id = ?", (str(gid), str(uid))) as c:
-        r = await c.fetchone(); return r if r else (0, 0, 0)
+    doc = await db.levels.find_one({"guild_id": str(gid), "user_id": str(uid)})
+    if doc: return (doc["xp"], doc["level"], doc["last_msg"])
+    return (0, 0, 0)
 async def update_level_data(gid, uid, xp, lvl, last):
-    await _db.execute("INSERT INTO levels (guild_id, user_id, xp, level, last_msg) VALUES (?, ?, ?, ?, ?) ON CONFLICT(guild_id, user_id) DO UPDATE SET xp=?, level=?, last_msg=?", (str(gid), str(uid), xp, lvl, last, xp, lvl, last))
-    await _db.commit()
+    await db.levels.update_one(
+        {"guild_id": str(gid), "user_id": str(uid)},
+        {"$set": {"xp": xp, "level": lvl, "last_msg": last}},
+        upsert=True
+    )
 async def get_top_levels(gid):
-    async with _db.execute("SELECT user_id, xp, level FROM levels WHERE guild_id = ? ORDER BY xp DESC LIMIT 10", (str(gid),)) as c:
-        return await c.fetchall()
+    cursor = db.levels.find({"guild_id": str(gid)}).sort("xp", -1).limit(10)
+    return [(doc["user_id"], doc["xp"], doc["level"]) async for doc in cursor]
 
 # --- Button Roles ---
 async def add_button_role(mid, rid, emoji, label):
-    await _db.execute("INSERT OR REPLACE INTO button_roles VALUES (?, ?, ?, ?)", (str(mid), str(rid), emoji, label))
-    await _db.commit()
+    await db.button_roles.update_one(
+        {"message_id": str(mid), "role_id": str(rid)},
+        {"$set": {"emoji": emoji, "label": label}},
+        upsert=True
+    )
 async def get_all_button_roles():
-    async with _db.execute("SELECT message_id, role_id, emoji, label FROM button_roles") as c:
-        return await c.fetchall()
+    cursor = db.button_roles.find({})
+    return [(doc["message_id"], doc["role_id"], doc["emoji"], doc["label"]) async for doc in cursor]
 async def get_button_roles_for_message(mid):
-    async with _db.execute("SELECT message_id, role_id, emoji, label FROM button_roles WHERE message_id = ?", (str(mid),)) as c:
-        return await c.fetchall()
+    cursor = db.button_roles.find({"message_id": str(mid)})
+    return [(doc["message_id"], doc["role_id"], doc["emoji"], doc["label"]) async for doc in cursor]
 
 # --- AutoMod ---
 async def set_automod(gid, log, inv, spam, caps, links):
-    await _db.execute("INSERT OR REPLACE INTO automod_config VALUES (?, ?, ?, ?, ?, ?)", (str(gid), str(log) if log else None, inv, spam, caps, links))
-    await _db.commit()
+    await db.automod_config.update_one(
+        {"guild_id": str(gid)},
+        {"$set": {"log_channel": str(log) if log else None, "anti_invite": inv, "anti_spam": spam, "anti_caps": caps, "anti_links": links}},
+        upsert=True
+    )
 async def get_automod(gid):
-    async with _db.execute("SELECT log_channel, anti_invite, anti_spam, anti_caps, anti_links FROM automod_config WHERE guild_id = ?", (str(gid),)) as c:
-        return await c.fetchone()
+    doc = await db.automod_config.find_one({"guild_id": str(gid)})
+    if doc: return (doc.get("log_channel"), doc["anti_invite"], doc["anti_spam"], doc["anti_caps"], doc["anti_links"])
+    return None
 
 # --- Logging ---
 async def set_logging(gid, msg, mem):
-    await _db.execute("INSERT OR REPLACE INTO logging_config VALUES (?, ?, ?)", (str(gid), str(msg) if msg else None, str(mem) if mem else None))
-    await _db.commit()
+    await db.logging_config.update_one(
+        {"guild_id": str(gid)},
+        {"$set": {"msg_log": str(msg) if msg else None, "member_log": str(mem) if mem else None}},
+        upsert=True
+    )
 async def get_logging(gid):
-    async with _db.execute("SELECT msg_log, member_log FROM logging_config WHERE guild_id = ?", (str(gid),)) as c:
-        return await c.fetchone()
+    doc = await db.logging_config.find_one({"guild_id": str(gid)})
+    if doc: return (doc.get("msg_log"), doc.get("member_log"))
+    return None
 
 # --- AFK ---
 async def set_afk(gid, uid, reason):
-    await _db.execute("INSERT OR REPLACE INTO afk VALUES (?, ?, ?)", (str(gid), str(uid), reason))
-    await _db.commit()
+    await db.afk.update_one(
+        {"guild_id": str(gid), "user_id": str(uid)},
+        {"$set": {"reason": reason}},
+        upsert=True
+    )
 async def get_afk(gid, uid):
-    async with _db.execute("SELECT reason FROM afk WHERE guild_id = ? AND user_id = ?", (str(gid), str(uid))) as c:
-        r = await c.fetchone(); return r[0] if r else None
+    doc = await db.afk.find_one({"guild_id": str(gid), "user_id": str(uid)})
+    return doc["reason"] if doc else None
 async def remove_afk(gid, uid):
-    await _db.execute("DELETE FROM afk WHERE guild_id = ? AND user_id = ?", (str(gid), str(uid)))
-    await _db.commit()
+    await db.afk.delete_one({"guild_id": str(gid), "user_id": str(uid)})
 
 # --- Temp Voice ---
 async def set_temp_hub(gid, cid):
-    await _db.execute("INSERT OR REPLACE INTO temp_voice_hub VALUES (?, ?)", (str(gid), str(cid)))
-    await _db.commit()
+    await db.temp_voice_hub.update_one(
+        {"guild_id": str(gid)},
+        {"$set": {"channel_id": str(cid)}},
+        upsert=True
+    )
 async def get_temp_hub(gid):
-    async with _db.execute("SELECT channel_id FROM temp_voice_hub WHERE guild_id = ?", (str(gid),)) as c:
-        r = await c.fetchone(); return r[0] if r else None
+    doc = await db.temp_voice_hub.find_one({"guild_id": str(gid)})
+    return doc["channel_id"] if doc else None
 async def add_temp_channel(cid, uid):
-    await _db.execute("INSERT INTO temp_voice_channels VALUES (?, ?)", (str(cid), str(uid)))
-    await _db.commit()
+    await db.temp_voice_channels.update_one(
+        {"channel_id": str(cid)},
+        {"$set": {"owner_id": str(uid)}},
+        upsert=True
+    )
 async def get_temp_channel(cid):
-    async with _db.execute("SELECT owner_id FROM temp_voice_channels WHERE channel_id = ?", (str(cid),)) as c:
-        r = await c.fetchone(); return r[0] if r else None
+    doc = await db.temp_voice_channels.find_one({"channel_id": str(cid)})
+    return doc["owner_id"] if doc else None
 async def remove_temp_channel(cid):
-    await _db.execute("DELETE FROM temp_voice_channels WHERE channel_id = ?", (str(cid),))
-    await _db.commit()
+    await db.temp_voice_channels.delete_one({"channel_id": str(cid)})
 async def add_trusted(cid, uid):
-    await _db.execute("INSERT OR IGNORE INTO trusted_users VALUES (?, ?)", (str(cid), str(uid)))
-    await _db.commit()
+    await db.temp_voice_channels.update_one(
+        {"channel_id": str(cid)},
+        {"$addToSet": {"trusted": str(uid)}}
+    )
 async def add_blocked(cid, uid):
-    await _db.execute("INSERT OR IGNORE INTO blocked_users VALUES (?, ?)", (str(cid), str(uid)))
-    await _db.commit()
+    await db.temp_voice_channels.update_one(
+        {"channel_id": str(cid)},
+        {"$addToSet": {"blocked": str(uid)}}
+    )
 async def update_temp_owner(cid, new_owner):
-    await _db.execute("UPDATE temp_voice_channels SET owner_id = ? WHERE channel_id = ?", (str(new_owner), str(cid)))
-    await _db.commit()
+    await db.temp_voice_channels.update_one(
+        {"channel_id": str(cid)},
+        {"$set": {"owner_id": str(new_owner)}}
+    )
 async def clean_vc(cid):
-    await _db.execute("DELETE FROM trusted_users WHERE channel_id = ?", (str(cid),))
-    await _db.execute("DELETE FROM blocked_users WHERE channel_id = ?", (str(cid),))
-    await _db.execute("DELETE FROM temp_voice_channels WHERE channel_id = ?", (str(cid),))
-    await _db.commit()
+    await db.temp_voice_channels.delete_one({"channel_id": str(cid)})
 
 # --- Starboard ---
 async def set_starboard(gid, cid):
-    await _db.execute("INSERT OR REPLACE INTO starboard VALUES (?, ?)", (str(gid), str(cid)))
-    await _db.commit()
+    await db.starboard.update_one(
+        {"guild_id": str(gid)},
+        {"$set": {"channel_id": str(cid)}},
+        upsert=True
+    )
 async def get_starboard(gid):
-    async with _db.execute("SELECT channel_id FROM starboard WHERE guild_id = ?", (str(gid),)) as c:
-        r = await c.fetchone(); return r[0] if r else None
+    doc = await db.starboard.find_one({"guild_id": str(gid)})
+    return doc["channel_id"] if doc else None
 async def add_star(mid, sid):
-    await _db.execute("INSERT OR REPLACE INTO starboard_msgs VALUES (?, ?)", (str(mid), str(sid)))
-    await _db.commit()
+    await db.starboard_msgs.update_one(
+        {"original_id": str(mid)},
+        {"$set": {"star_id": str(sid)}},
+        upsert=True
+    )
 async def get_star(mid):
-    async with _db.execute("SELECT star_id FROM starboard_msgs WHERE original_id = ?", (str(mid),)) as c:
-        r = await c.fetchone(); return r[0] if r else None
+    doc = await db.starboard_msgs.find_one({"original_id": str(mid)})
+    return doc["star_id"] if doc else None
 
 # --- Reminders ---
 async def add_reminder(uid, cid, time, text):
-    await _db.execute("INSERT INTO reminders (user_id, channel_id, end_time, text) VALUES (?, ?, ?, ?)", (str(uid), str(cid), time, text))
-    await _db.commit()
+    await db.reminders.insert_one({"user_id": str(uid), "channel_id": str(cid), "end_time": time, "text": text})
 async def get_reminders():
-    async with _db.execute("SELECT id, user_id, channel_id, text FROM reminders WHERE end_time <= strftime('%s', 'now')") as c:
-        return await c.fetchall()
+    import time
+    cursor = db.reminders.find({"end_time": {"$lte": int(time.time())}})
+    return [(doc["_id"], doc["user_id"], doc["channel_id"], doc["text"]) async for doc in cursor]
 async def remove_reminder(rid):
-    await _db.execute("DELETE FROM reminders WHERE id = ?", (rid,))
-    await _db.commit()
+    from bson.objectid import ObjectId
+    await db.reminders.delete_one({"_id": ObjectId(rid)})
 
 # --- Quotes ---
 async def add_quote(gid, author, content):
-    await _db.execute("INSERT INTO quotes (guild_id, author, content) VALUES (?, ?, ?)", (str(gid), author, content))
-    await _db.commit()
+    await db.quotes.insert_one({"guild_id": str(gid), "author": author, "content": content})
 async def get_quote(gid):
-    async with _db.execute("SELECT author, content FROM quotes WHERE guild_id = ? ORDER BY RANDOM() LIMIT 1", (str(gid),)) as c:
-        return await c.fetchone()
+    pipeline = [{"$match": {"guild_id": str(gid)}}, {"$sample": {"size": 1}}]
+    cursor = db.quotes.aggregate(pipeline)
+    docs = [doc async for doc in cursor]
+    if docs: return (docs[0]["author"], docs[0]["content"])
+    return None
 
 # --- Stats ---
 async def set_stat(gid, cid, type):
-    await _db.execute("INSERT INTO stats VALUES (?, ?, ?)", (str(gid), str(cid), type))
-    await _db.commit()
+    await db.stats.update_one(
+        {"guild_id": str(gid), "type": type},
+        {"$set": {"channel_id": str(cid)}},
+        upsert=True
+    )
 async def get_stats():
-    async with _db.execute("SELECT guild_id, channel_id, type FROM stats") as c:
-        return await c.fetchall()
+    cursor = db.stats.find({})
+    return [(doc["guild_id"], doc["channel_id"], doc["type"]) async for doc in cursor]
 
 # --- Bump ---
 async def set_bump(gid, time):
-    await _db.execute("INSERT OR REPLACE INTO bump VALUES (?, ?)", (str(gid), time))
-    await _db.commit()
+    await db.bump.update_one(
+        {"guild_id": str(gid)},
+        {"$set": {"end_time": time}},
+        upsert=True
+    )
 async def get_bump(gid):
-    async with _db.execute("SELECT end_time FROM bump WHERE guild_id = ?", (str(gid),)) as c:
-        r = await c.fetchone(); return r[0] if r else 0
+    doc = await db.bump.find_one({"guild_id": str(gid)})
+    return doc["end_time"] if doc else 0
 
 # --- Counting ---
 async def set_counting_channel(gid, cid):
-    await _db.execute("INSERT OR REPLACE INTO counting VALUES (?, ?, 0, NULL)", (str(gid), str(cid)))
-    await _db.commit()
+    await db.counting.update_one(
+        {"guild_id": str(gid)},
+        {"$set": {"channel_id": str(cid), "current_count": 0, "last_user": None}},
+        upsert=True
+    )
 async def get_counting(gid):
-    async with _db.execute("SELECT channel_id, current_count, last_user FROM counting WHERE guild_id = ?", (str(gid),)) as c:
-        return await c.fetchone()
+    doc = await db.counting.find_one({"guild_id": str(gid)})
+    if doc: return (doc["channel_id"], doc["current_count"], doc.get("last_user"))
+    return None
 async def update_counting(gid, count, uid):
-    await _db.execute("UPDATE counting SET current_count = ?, last_user = ? WHERE guild_id = ?", (count, str(uid), str(gid)))
-    await _db.commit()
+    await db.counting.update_one(
+        {"guild_id": str(gid)},
+        {"$set": {"current_count": count, "last_user": str(uid) if uid else None}}
+    )
 
 # --- Mention Responders ---
 async def set_mention_responder(gid, target_id, response):
-    await _db.execute("INSERT OR REPLACE INTO mention_responders VALUES (?, ?, ?)", (str(gid), str(target_id), response))
-    await _db.commit()
+    await db.mention_responders.update_one(
+        {"guild_id": str(gid), "target_id": str(target_id)},
+        {"$set": {"response": response}},
+        upsert=True
+    )
 async def get_mention_responders(gid):
-    async with _db.execute("SELECT target_id, response FROM mention_responders WHERE guild_id = ?", (str(gid),)) as c:
-        return await c.fetchall()
+    cursor = db.mention_responders.find({"guild_id": str(gid)})
+    return [(doc["target_id"], doc["response"]) async for doc in cursor]
 async def remove_mention_responder(gid, target_id):
-    await _db.execute("DELETE FROM mention_responders WHERE guild_id = ? AND target_id = ?", (str(gid), str(target_id)))
-    await _db.commit()
+    await db.mention_responders.delete_one({"guild_id": str(gid), "target_id": str(target_id)})
 
 # --- Warnings ---
 async def add_warning(gid, uid, mid, reason):
-    await _db.execute("INSERT INTO warnings (guild_id, user_id, mod_id, reason) VALUES (?, ?, ?, ?)", (str(gid), str(uid), str(mid), reason))
-    await _db.commit()
+    await db.warnings.insert_one({"guild_id": str(gid), "user_id": str(uid), "mod_id": str(mid), "reason": reason})
 async def get_warnings(gid, uid):
-    async with _db.execute("SELECT id, mod_id, reason FROM warnings WHERE guild_id = ? AND user_id = ?", (str(gid), str(uid))) as c:
-        return await c.fetchall()
+    cursor = db.warnings.find({"guild_id": str(gid), "user_id": str(uid)})
+    return [(str(doc["_id"]), doc["mod_id"], doc["reason"]) async for doc in cursor]
 async def clear_warnings(gid, uid):
-    await _db.execute("DELETE FROM warnings WHERE guild_id = ? AND user_id = ?", (str(gid), str(uid)))
-    await _db.commit()
+    await db.warnings.delete_many({"guild_id": str(gid), "user_id": str(uid)})
 
 # --- Temp Roles ---
 async def add_temp_role(gid, uid, rid, end):
-    await _db.execute("INSERT INTO temp_roles VALUES (?, ?, ?, ?)", (str(gid), str(uid), str(rid), end))
-    await _db.commit()
+    await db.temp_roles.update_one(
+        {"guild_id": str(gid), "user_id": str(uid), "role_id": str(rid)},
+        {"$set": {"end_time": end}},
+        upsert=True
+    )
 async def get_expired_roles():
-    async with _db.execute("SELECT guild_id, user_id, role_id FROM temp_roles WHERE end_time <= strftime('%s', 'now')") as c:
-        return await c.fetchall()
+    import time
+    cursor = db.temp_roles.find({"end_time": {"$lte": int(time.time())}})
+    return [(doc["guild_id"], doc["user_id"], doc["role_id"]) async for doc in cursor]
 async def remove_temp_role(gid, uid, rid):
-    await _db.execute("DELETE FROM temp_roles WHERE guild_id = ? AND user_id = ? AND role_id = ?", (str(gid), str(uid), str(rid)))
-    await _db.commit()
+    await db.temp_roles.delete_one({"guild_id": str(gid), "user_id": str(uid), "role_id": str(rid)})
 
 # --- Suggestions ---
 async def add_suggestion(mid, cid, uid, text):
-    await _db.execute("INSERT INTO suggestions VALUES (?, ?, ?, ?)", (str(mid), str(cid), str(uid), text))
-    await _db.commit()
+    await db.suggestions.update_one(
+        {"message_id": str(mid)},
+        {"$set": {"channel_id": str(cid), "author_id": str(uid), "text": text}},
+        upsert=True
+    )
 
 # --- Highlights ---
 async def add_highlight(gid, uid, keyword):
-    await _db.execute("INSERT OR IGNORE INTO highlights VALUES (?, ?, ?)", (str(gid), str(uid), keyword.lower()))
-    await _db.commit()
+    await db.highlights.update_one(
+        {"guild_id": str(gid), "user_id": str(uid), "keyword": keyword.lower()},
+        {"$set": {"keyword": keyword.lower()}},
+        upsert=True
+    )
 async def remove_highlight(gid, uid, keyword):
-    await _db.execute("DELETE FROM highlights WHERE guild_id = ? AND user_id = ? AND keyword = ?", (str(gid), str(uid), keyword.lower()))
-    await _db.commit()
+    await db.highlights.delete_one({"guild_id": str(gid), "user_id": str(uid), "keyword": keyword.lower()})
 async def get_user_highlights(gid, uid):
-    async with _db.execute("SELECT keyword FROM highlights WHERE guild_id = ? AND user_id = ?", (str(gid), str(uid))) as c:
-        return await c.fetchall()
+    cursor = db.highlights.find({"guild_id": str(gid), "user_id": str(uid)})
+    return [(doc["keyword"],) async for doc in cursor]
 async def get_all_highlights(gid):
-    async with _db.execute("SELECT user_id, keyword FROM highlights WHERE guild_id = ?", (str(gid),)) as c:
-        return await c.fetchall()
+    cursor = db.highlights.find({"guild_id": str(gid)})
+    return [(doc["user_id"], doc["keyword"]) async for doc in cursor]
 
 # --- Staff Notes ---
 async def add_note(gid, uid, author_id, note):
-    await _db.execute("INSERT INTO staff_notes (guild_id, user_id, author_id, note) VALUES (?, ?, ?, ?)", (str(gid), str(uid), str(author_id), note))
-    await _db.commit()
+    await db.staff_notes.insert_one({"guild_id": str(gid), "user_id": str(uid), "author_id": str(author_id), "note": note})
 async def get_notes(gid, uid):
-    async with _db.execute("SELECT id, author_id, note FROM staff_notes WHERE guild_id = ? AND user_id = ?", (str(gid), str(uid))) as c:
-        return await c.fetchall()
+    cursor = db.staff_notes.find({"guild_id": str(gid), "user_id": str(uid)})
+    return [(str(doc["_id"]), doc["author_id"], doc["note"]) async for doc in cursor]
 async def delete_note(nid):
-    await _db.execute("DELETE FROM staff_notes WHERE id = ?", (nid,))
-    await _db.commit()
+    from bson.objectid import ObjectId
+    await db.staff_notes.delete_one({"_id": ObjectId(nid)})
