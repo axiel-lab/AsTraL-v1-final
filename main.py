@@ -13,9 +13,9 @@ intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 statuses = [
-    discord.Activity(type=discord.ActivityType.watching, name="judging your messages"),
-    discord.Activity(type=discord.ActivityType.listening, name="listening to your commands "),
-    discord.Activity(type=discord.ActivityType.playing, name="made by Ax!eL")
+    discord.Activity(type=discord.ActivityType.watching, name="over the server 👀"),
+    discord.Activity(type=discord.ActivityType.listening, name="your commands 🎧"),
+    discord.Activity(type=discord.ActivityType.playing, name="with buttons 🎮")
 ]
 
 @tasks.loop(seconds=30)
@@ -24,62 +24,49 @@ async def change_status():
 
 @bot.event
 async def setup_hook():
-    if not os.path.exists("data"):
-        os.makedirs("data")
-        
     await db.init()
     
-    await bot.load_extension("cogs.core")
-    await bot.load_extension("cogs.custom_commands")
-    await bot.load_extension("cogs.moderation")
-    await bot.load_extension("cogs.tickets")
-    await bot.load_extension("cogs.nicknames")
-    await bot.load_extension("cogs.utility")
-    await bot.load_extension("cogs.fun")
-    await bot.load_extension("cogs.welcome")
-    await bot.load_extension("cogs.giveaway")
-    await bot.load_extension("cogs.leveling")
-    await bot.load_extension("cogs.button_roles")
-    await bot.load_extension("cogs.automod")
-    await bot.load_extension("cogs.mention_responder")
-    await bot.load_extension("cogs.logging")
-    await bot.load_extension("cogs.afk")
-    await bot.load_extension("cogs.temp_voice")
-    await bot.load_extension("cogs.starboard")
-    await bot.load_extension("cogs.reminders")
-    await bot.load_extension("cogs.verification")
-    await bot.load_extension("cogs.quotes")
-    await bot.load_extension("cogs.stats")
-    await bot.load_extension("cogs.bump")
-    await bot.load_extension("cogs.reaction_roles")
-    await bot.load_extension("cogs.polls")
-    await bot.load_extension("cogs.snipe")
-    await bot.load_extension("cogs.counting")
-    await bot.load_extension("cogs.embeds")
-    await bot.load_extension("cogs.warnings")
-    await bot.load_extension("cogs.lockdown")
-    await bot.load_extension("cogs.tictactoe")
-    await bot.load_extension("cogs.temproles")
-    await bot.load_extension("cogs.translate")
-    await bot.load_extension("cogs.suggestions")
-    await bot.load_extension("cogs.weather")
-    await bot.load_extension("cogs.roleplay")
-    await bot.load_extension("cogs.highlights")
-    await bot.load_extension("cogs.notes")
+    extensions = [
+        "cogs.core", "cogs.custom_commands", "cogs.moderation", "cogs.tickets", 
+        "cogs.nicknames", "cogs.utility", "cogs.fun", "cogs.welcome", "cogs.giveaway", 
+        "cogs.leveling", "cogs.button_roles", "cogs.automod", "cogs.mention_responder", 
+        "cogs.logging", "cogs.afk", "cogs.temp_voice", "cogs.starboard", "cogs.reminders", 
+        "cogs.verification", "cogs.quotes", "cogs.stats", "cogs.bump", "cogs.reaction_roles", 
+        "cogs.polls", "cogs.snipe", "cogs.counting", "cogs.embeds", "cogs.warnings", 
+        "cogs.lockdown", "cogs.tictactoe", "cogs.temproles", "cogs.translate", 
+        "cogs.suggestions", "cogs.weather", "cogs.roleplay", "cogs.highlights", "cogs.notes"
+    ]
+    for ext in extensions:
+        try:
+            await bot.load_extension(ext)
+        except Exception as e:
+            print(f"Failed to load {ext}: {e}")
     
-    if DEV_GUILD_ID:
-        guild = discord.Object(id=int(DEV_GUILD_ID))
-        bot.tree.copy_global_to(guild=guild)
-        await bot.tree.sync(guild=guild)
-        print("Commands synced to dev guild.")
-    else:
-        await bot.tree.sync()
-        print("Commands synced globally.")
+    await bot.tree.sync()
+    print("Commands synced globally.")
 
 @bot.event
 async def on_ready():
     change_status.start()
     print(f"Online: {bot.user}")
+
+@bot.tree.error
+async def on_app_command_error(interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
+    if isinstance(error, discord.app_commands.CommandOnCooldown):
+        msg = f"⏳ Slow down! Try again in `{error.retry_after:.2f}s`."
+    elif isinstance(error, discord.app_commands.MissingPermissions):
+        msg = "❌ You don't have permission to use this command."
+    else:
+        msg = f"❌ Error: `{str(error)}`"
+        print(f"Command Error: {error}")
+
+    try:
+        if not interaction.response.is_done():
+            await interaction.response.send_message(msg, ephemeral=True)
+        else:
+            await interaction.followup.send(msg, ephemeral=True)
+    except:
+        pass
 
 if __name__ == "__main__":
     bot.run(DISCORD_TOKEN)
