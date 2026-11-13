@@ -13,9 +13,9 @@ intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 statuses = [
-    discord.Activity(type=discord.ActivityType.watching, name="over the server 👀"),
-    discord.Activity(type=discord.ActivityType.listening, name="your commands 🎧"),
-    discord.Activity(type=discord.ActivityType.playing, name="with buttons 🎮")
+    discord.Activity(type=discord.ActivityType.watching, name="over the server"),
+    discord.Activity(type=discord.ActivityType.listening, name="listening to your commands "),
+    discord.Activity(type=discord.ActivityType.playing, name="Made by Ax!eL")
 ]
 
 @tasks.loop(seconds=30)
