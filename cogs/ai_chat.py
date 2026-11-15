@@ -1,8 +1,10 @@
 import discord
+from discord import app_commands
 from discord.ext import commands
 import os
 import aiohttp
 import re
+import db
 
 SYSTEM_PROMPT = (
     "You are a mature, intelligent, and savage AI. "
@@ -15,14 +17,39 @@ class AIChat(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    @app_commands.command(name="setup_ai", description="Setup the AI thread channel")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def setup_ai(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        await db.set_ai_channel(interaction.guild.id, channel.id)
+        await interaction.response.send_message(f"✅ AI thread system enabled in {channel.mention}.", ephemeral=True)
+
     @commands.Cog.listener()
     async def on_message(self, msg):
         if msg.author.bot or not msg.guild:
             return
 
+        ai_chan_id = await db.get_ai_channel(msg.guild.id)
+        
+        if ai_chan_id and str(msg.channel.id) == str(ai_chan_id):
+            await msg.delete()
+            thread_name = f"Chat with {msg.author.display_name}"[:100]
+            thread = await msg.channel.create_thread(
+                name=thread_name, 
+                type=discord.ChannelType.public_thread
+            )
+            await thread.send(f"{msg.author.mention} said: *\"{msg.content}\"*\n\n**Thinking...**")
+            response = await self.get_ai_response(msg.content)
+            await thread.send(f"**AI:** {response}")
+            return
+
+        if isinstance(msg.channel, discord.Thread) and ai_chan_id and msg.channel.parent_id == int(ai_chan_id):
+            async with msg.channel.typing():
+                response = await self.get_ai_response(msg.content)
+                await msg.reply(response, mention_author=False)
+            return
+
         is_mentioned = self.bot.user in msg.mentions
         is_reply = False
-        
         if msg.reference:
             try:
                 resolved = msg.reference.resolved
@@ -31,37 +58,36 @@ class AIChat(commands.Cog):
             except:
                 pass
 
-        if not is_mentioned and not is_reply:
-            return
+        if is_mentioned or is_reply:
+            prompt = re.sub(r'<@!?\d+>', '', msg.content).strip()
+            if not prompt:
+                return await msg.reply("Kichu bolo, shudhu mention kore labh nai.", mention_author=False)
 
-        prompt = re.sub(r'<@!?\d+>', '', msg.content).strip()
-
-        if not prompt:
-            return await msg.reply("Kichu bolo, shudhu mention kore labh nai.", mention_author=False)
-
-        async with msg.channel.typing():
-            response = await self.get_ai_response(prompt)
-            await msg.reply(response, mention_author=False)
+            async with msg.channel.typing():
+                response = await self.get_ai_response(prompt)
+                await msg.reply(response, mention_author=False)
 
     async def get_ai_response(self, text):
         groq_key = os.getenv("GROQ_API_KEY")
         if groq_key:
             response = await self.query_groq(text, groq_key)
-            if response and not response.startswith("ERROR"):
+            if not response.startswith("ERROR"):
                 return response
+            print(f"[GROQ ERROR] {response}")
 
         gemini_key = os.getenv("GEMINI_API_KEY")
         if gemini_key:
             response = await self.query_gemini(text, gemini_key)
-            if response and not response.startswith("ERROR"):
+            if not response.startswith("ERROR"):
                 return response
+            print(f"[GEMINI ERROR] {response}")
 
-        return "AI offline. Admin check API keys."
+        return "Both AI APIs failed. Check Deplexo console logs for the exact reason."
 
     async def query_groq(self, text, api_key):
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         payload = {
-            "model": "llama3-8b-8192",
+            "model": "llama-3.1-8b-instant",
             "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": text}],
             "max_tokens": 150,
             "temperature": 0.8
@@ -72,7 +98,7 @@ class AIChat(commands.Cog):
                     if r.status == 200:
                         data = await r.json()
                         return data["choices"][0]["message"]["content"].strip()
-                    return f"ERROR: {r.status}"
+                    return f"ERROR: Status {r.status} - {await r.text()}"
         except Exception as e:
             return f"ERROR: {e}"
 
@@ -87,7 +113,7 @@ class AIChat(commands.Cog):
                     if r.status == 200:
                         data = await r.json()
                         return data["candidates"][0]["content"]["parts"][0]["text"].strip()
-                    return f"ERROR: {r.status}"
+                    return f"ERROR: Status {r.status} - {await r.text()}"
         except Exception as e:
             return f"ERROR: {e}"
 
