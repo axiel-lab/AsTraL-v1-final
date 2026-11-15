@@ -22,6 +22,7 @@ async def init():
     await db.giveaways.create_index([("message_id", 1)], unique=True)
     await db.ai_config.create_index([("guild_id", 1)], unique=True)
     await db.weather_config.create_index([("guild_id", 1)], unique=True)
+
 # --- Custom Commands ---
 async def save(gid, name, response, uid):
     await db.custom_commands.update_one(
