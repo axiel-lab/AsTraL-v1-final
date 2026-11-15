@@ -10,9 +10,14 @@ class VerifyButton(discord.ui.View):
     @discord.ui.button(label="Verify", style=discord.ButtonStyle.success, custom_id="verify_btn")
     async def verify(self, interaction: discord.Interaction, button: discord.ui.Button):
         role = interaction.guild.get_role(self.role_id)
-        if role:
+        if not role:
+            return await interaction.response.send_message("❌ The verification role was deleted. Please contact an admin.", ephemeral=True)
+        
+        try:
             await interaction.user.add_roles(role)
             await interaction.response.send_message("✅ Verified!", ephemeral=True)
+        except discord.Forbidden:
+            await interaction.response.send_message("❌ I don't have permission to give you this role. (My role is too low).", ephemeral=True)
 
 class Verification(commands.Cog):
     def __init__(self, bot): self.bot = bot
