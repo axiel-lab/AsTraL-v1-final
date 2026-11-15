@@ -23,6 +23,25 @@ class AIChat(commands.Cog):
         await db.set_ai_channel(interaction.guild.id, channel.id)
         await interaction.response.send_message(f"✅ AI thread system enabled in {channel.mention}.", ephemeral=True)
 
+    @app_commands.command(name="test_ai", description="Test if the AI APIs are working")
+    async def test_ai(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        groq_key = os.getenv("GROQ_API_KEY")
+        gemini_key = os.getenv("GEMINI_API_KEY")
+        
+        msg = f"**Groq Key:** {'Found ✅' if groq_key else 'Missing ❌'}\n"
+        msg += f"**Gemini Key:** {'Found ✅' if gemini_key else 'Missing ❌'}\n\n"
+
+        if groq_key:
+            res = await self.query_groq("Say 'Groq works'", groq_key)
+            msg += f"**Groq Response:** {res[:300]}\n\n"
+            
+        if gemini_key:
+            res = await self.query_gemini("Say 'Gemini works'", gemini_key)
+            msg += f"**Gemini Response:** {res[:300]}\n"
+            
+        await interaction.followup.send(msg)
+
     @commands.Cog.listener()
     async def on_message(self, msg):
         if msg.author.bot or not msg.guild:
@@ -30,7 +49,6 @@ class AIChat(commands.Cog):
 
         ai_chan_id = await db.get_ai_channel(msg.guild.id)
         
-        # Thread setup
         if ai_chan_id and str(msg.channel.id) == str(ai_chan_id):
             await msg.delete()
             thread = await msg.channel.create_thread(name=f"Chat with {msg.author.display_name}"[:100], type=discord.ChannelType.public_thread)
@@ -39,14 +57,12 @@ class AIChat(commands.Cog):
             await thread.send(f"**AI:** {response}")
             return
 
-        # Reply inside thread
         if isinstance(msg.channel, discord.Thread) and ai_chan_id and msg.channel.parent_id == int(ai_chan_id):
             async with msg.channel.typing():
                 response = await self.get_ai_response(msg.content)
                 await msg.reply(response, mention_author=False)
             return
 
-        # Mention or reply anywhere else
         is_mentioned = self.bot.user in msg.mentions
         is_reply = False
         if msg.reference:
@@ -72,6 +88,7 @@ class AIChat(commands.Cog):
             if not response.startswith("ERROR"):
                 return response
             print(f"[GROQ ERROR] {response}")
+            error_log = response
 
         gemini_key = os.getenv("GEMINI_API_KEY")
         if gemini_key:
@@ -79,13 +96,15 @@ class AIChat(commands.Cog):
             if not response.startswith("ERROR"):
                 return response
             print(f"[GEMINI ERROR] {response}")
+            error_log = response
 
-        return "Both AI APIs failed. Check Deplexo console logs."
+        # Sends the exact error to chat so you can see it
+        return f"❌ AI failed. Reason: {error_log}"
 
     async def query_groq(self, text, api_key):
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         payload = {
-            "model": "llama-3.1-8b-instant",  # Fixed model name
+            "model": "llama-3.1-8b-instant",
             "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": text}],
             "max_tokens": 150,
             "temperature": 0.8
@@ -96,7 +115,7 @@ class AIChat(commands.Cog):
                     if r.status == 200:
                         data = await r.json()
                         return data["choices"][0]["message"]["content"].strip()
-                    return f"ERROR: Status {r.status}"
+                    return f"ERROR: Status {r.status} - {await r.text()}"
         except Exception as e:
             return f"ERROR: {e}"
 
@@ -111,7 +130,7 @@ class AIChat(commands.Cog):
                     if r.status == 200:
                         data = await r.json()
                         return data["candidates"][0]["content"]["parts"][0]["text"].strip()
-                    return f"ERROR: Status {r.status}"
+                    return f"ERROR: Status {r.status} - {await r.text()}"
         except Exception as e:
             return f"ERROR: {e}"
 
