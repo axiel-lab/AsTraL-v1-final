@@ -30,24 +30,23 @@ class AIChat(commands.Cog):
 
         ai_chan_id = await db.get_ai_channel(msg.guild.id)
         
+        # Thread setup
         if ai_chan_id and str(msg.channel.id) == str(ai_chan_id):
             await msg.delete()
-            thread_name = f"Chat with {msg.author.display_name}"[:100]
-            thread = await msg.channel.create_thread(
-                name=thread_name, 
-                type=discord.ChannelType.public_thread
-            )
+            thread = await msg.channel.create_thread(name=f"Chat with {msg.author.display_name}"[:100], type=discord.ChannelType.public_thread)
             await thread.send(f"{msg.author.mention} said: *\"{msg.content}\"*\n\n**Thinking...**")
             response = await self.get_ai_response(msg.content)
             await thread.send(f"**AI:** {response}")
             return
 
+        # Reply inside thread
         if isinstance(msg.channel, discord.Thread) and ai_chan_id and msg.channel.parent_id == int(ai_chan_id):
             async with msg.channel.typing():
                 response = await self.get_ai_response(msg.content)
                 await msg.reply(response, mention_author=False)
             return
 
+        # Mention or reply anywhere else
         is_mentioned = self.bot.user in msg.mentions
         is_reply = False
         if msg.reference:
@@ -55,8 +54,7 @@ class AIChat(commands.Cog):
                 resolved = msg.reference.resolved
                 if isinstance(resolved, discord.Message) and resolved.author == self.bot.user:
                     is_reply = True
-            except:
-                pass
+            except: pass
 
         if is_mentioned or is_reply:
             prompt = re.sub(r'<@!?\d+>', '', msg.content).strip()
@@ -82,12 +80,12 @@ class AIChat(commands.Cog):
                 return response
             print(f"[GEMINI ERROR] {response}")
 
-        return "Both AI APIs failed. Check Deplexo console logs for the exact reason."
+        return "Both AI APIs failed. Check Deplexo console logs."
 
     async def query_groq(self, text, api_key):
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         payload = {
-            "model": "llama-3.1-8b-instant",
+            "model": "llama-3.1-8b-instant",  # Fixed model name
             "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": text}],
             "max_tokens": 150,
             "temperature": 0.8
@@ -98,7 +96,7 @@ class AIChat(commands.Cog):
                     if r.status == 200:
                         data = await r.json()
                         return data["choices"][0]["message"]["content"].strip()
-                    return f"ERROR: Status {r.status} - {await r.text()}"
+                    return f"ERROR: Status {r.status}"
         except Exception as e:
             return f"ERROR: {e}"
 
@@ -113,7 +111,7 @@ class AIChat(commands.Cog):
                     if r.status == 200:
                         data = await r.json()
                         return data["candidates"][0]["content"]["parts"][0]["text"].strip()
-                    return f"ERROR: Status {r.status} - {await r.text()}"
+                    return f"ERROR: Status {r.status}"
         except Exception as e:
             return f"ERROR: {e}"
 
