@@ -14,7 +14,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 statuses = [
     discord.Activity(type=discord.ActivityType.watching, name="over the server"),
-    discord.Activity(type=discord.ActivityType.listening, name="listening to your commands "),
+    discord.Activity(type=discord.ActivityType.listening, name="listening to your commands"),
     discord.Activity(type=discord.ActivityType.playing, name="Made by Ax!eL")
 ]
 
@@ -34,7 +34,8 @@ async def setup_hook():
         "cogs.verification", "cogs.quotes", "cogs.stats", "cogs.bump", "cogs.reaction_roles", 
         "cogs.polls", "cogs.snipe", "cogs.counting", "cogs.embeds", "cogs.warnings", 
         "cogs.lockdown", "cogs.tictactoe", "cogs.temproles", "cogs.translate", 
-        "cogs.suggestions", "cogs.weather", "cogs.roleplay", "cogs.highlights", "cogs.notes"
+        "cogs.suggestions", "cogs.weather", "cogs.roleplay", "cogs.highlights", "cogs.notes",
+        "cogs.ai_chat"
     ]
     for ext in extensions:
         try:
