@@ -373,3 +373,17 @@ async def set_ai_channel(gid, cid):
 async def get_ai_channel(gid):
     doc = await db.ai_config.find_one({"guild_id": str(gid)})
     return doc["channel_id"] if doc else None
+
+
+# --- Weather ---
+async def set_weather_config(gid, cid, city):
+    await db.weather_config.update_one(
+        {"guild_id": str(gid)},
+        {"$set": {"channel_id": str(cid), "city": city}},
+        upsert=True
+    )
+async def get_weather_configs():
+    cursor = db.weather_config.find({})
+    return [(doc["guild_id"], doc["channel_id"], doc["city"]) async for doc in cursor]
+async def remove_weather_config(gid):
+    await db.weather_config.delete_one({"guild_id": str(gid)})
