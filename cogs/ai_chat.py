@@ -88,7 +88,6 @@ class AIChat(commands.Cog):
             if not response.startswith("ERROR"):
                 return response
             print(f"[GROQ ERROR] {response}")
-            error_log = response
 
         gemini_key = os.getenv("GEMINI_API_KEY")
         if gemini_key:
@@ -96,15 +95,13 @@ class AIChat(commands.Cog):
             if not response.startswith("ERROR"):
                 return response
             print(f"[GEMINI ERROR] {response}")
-            error_log = response
 
-        # Sends the exact error to chat so you can see it
-        return f"❌ AI failed. Reason: {error_log}"
+        return "Both AI APIs failed. Check Deplexo console logs for the exact reason."
 
     async def query_groq(self, text, api_key):
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         payload = {
-            "model": "llama-3.1-8b-instant",
+            "model": "llama-3.3-70b-versatile", # Updated model
             "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": text}],
             "max_tokens": 150,
             "temperature": 0.8
@@ -123,7 +120,8 @@ class AIChat(commands.Cog):
         full_prompt = f"System: {SYSTEM_PROMPT}\n\nUser: {text}\n\nAI:"
         headers = {"Content-Type": "application/json"}
         payload = {"contents": [{"parts": [{"text": full_prompt}]}]}
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+        # Updated API version and model
+        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key={api_key}"
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, headers=headers, json=payload) as r:
