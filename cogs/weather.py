@@ -30,7 +30,7 @@ class Weather(commands.Cog):
 
     async def get_weather_embed(self, city):
         async with aiohttp.ClientSession() as session:
-            # 1. Get Coordinates for the City
+            # Get coordinates for the city
             geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={city}&count=1&language=en&format=json"
             async with session.get(geo_url) as r:
                 data = await r.json()
@@ -40,7 +40,7 @@ class Weather(commands.Cog):
                 lat, lon = loc["latitude"], loc["longitude"]
                 name = loc["name"]
 
-            # 2. Get Weather Data using Coordinates
+            # Get weather data
             weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
             async with session.get(weather_url) as r:
                 data = await r.json()
@@ -48,22 +48,19 @@ class Weather(commands.Cog):
                 if not cw:
                     return None
 
-                embed = discord.Embed(
-                    title=f"🌤️ Weather in {name}", 
-                    color=discord.Color.blue()
-                )
+                embed = discord.Embed(title=f"🌤️ Weather in {name}", color=discord.Color.blue())
                 embed.add_field(name="Temperature", value=f"{cw['temperature']}°C")
                 embed.add_field(name="Wind Speed", value=f"{cw['windspeed']} km/h")
                 embed.add_field(name="Wind Direction", value=f"{cw['winddirection']}°")
                 embed.set_footer(text="Updates automatically every hour.")
                 return embed
 
-    @app_commands.command(name="setup_weather", description="Setup hourly weather updates for a city")
+    @app_commands.command(name="setup_weather", description="Setup hourly weather updates")
     @app_commands.checks.has_permissions(administrator=True)
     async def setup_weather(self, interaction: discord.Interaction, channel: discord.TextChannel, city: str):
         embed = await self.get_weather_embed(city)
         if not embed:
-            return await interaction.response.send_message("❌ City not found. Try a different name.", ephemeral=True)
+            return await interaction.response.send_message("❌ City not found.", ephemeral=True)
         
         await db.set_weather_config(interaction.guild.id, channel.id, city)
         await interaction.response.send_message(f"✅ Weather updates for **{city}** will be sent to {channel.mention} every hour.", ephemeral=True)
