@@ -20,6 +20,7 @@ async def init():
     await db.highlights.create_index([("guild_id", 1), ("user_id", 1), ("keyword", 1)], unique=True)
     await db.tickets.create_index([("channel_id", 1)], unique=True)
     await db.giveaways.create_index([("message_id", 1)], unique=True)
+    await db.ai_config.create_index([("guild_id", 1)], unique=True)
 
 # --- Custom Commands ---
 async def save(gid, name, response, uid):
@@ -361,3 +362,14 @@ async def get_notes(gid, uid):
 async def delete_note(nid):
     from bson.objectid import ObjectId
     await db.staff_notes.delete_one({"_id": ObjectId(nid)})
+
+# --- AI Channel ---
+async def set_ai_channel(gid, cid):
+    await db.ai_config.update_one(
+        {"guild_id": str(gid)},
+        {"$set": {"channel_id": str(cid)}},
+        upsert=True
+    )
+async def get_ai_channel(gid):
+    doc = await db.ai_config.find_one({"guild_id": str(gid)})
+    return doc["channel_id"] if doc else None
