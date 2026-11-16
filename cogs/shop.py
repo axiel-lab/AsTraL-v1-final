@@ -3,7 +3,7 @@ from discord import app_commands
 from discord.ext import commands
 import db
 from config import THEME_COLOR, EMOJI_COIN, EMOJI_SUCCESS
-from utils.ui import success_embed, error_embed, main_embed
+from ui import success_embed, error_embed, main_embed
 
 class Shop(commands.Cog):
     def __init__(self, bot): self.bot = bot
