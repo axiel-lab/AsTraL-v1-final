@@ -3,76 +3,56 @@ from discord import app_commands
 from discord.ext import commands, tasks
 import aiohttp
 import db
+from ui import success_embed, error_embed, main_embed
+from config import EMOJI_INFO
 
 class Weather(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.weather_loop.start()
-
-    def cog_unload(self):
-        self.weather_loop.cancel()
+    def cog_unload(self): self.weather_loop.cancel()
 
     @tasks.loop(hours=1)
     async def weather_loop(self):
-        configs = await db.get_weather_configs()
-        for gid, cid, city in configs:
+        for gid, cid, city in await db.get_weather_configs():
             channel = self.bot.get_channel(int(cid))
-            if not channel:
-                continue
-            
-            embed = await self.get_weather_embed(city)
-            if embed:
-                await channel.send(embed=embed)
+            if channel:
+                embed = await self.get_weather_embed(city)
+                if embed: await channel.send(embed=embed)
 
     @weather_loop.before_loop
-    async def before_weather_loop(self):
-        await self.bot.wait_until_ready()
+    async def before(self): await self.bot.wait_until_ready()
 
     async def get_weather_embed(self, city):
         async with aiohttp.ClientSession() as session:
-            geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={city}&count=1&language=en&format=json"
-            async with session.get(geo_url) as r:
-                data = await r.json()
-                if not data.get("results"):
-                    return None
-                loc = data["results"][0]
-                lat, lon = loc["latitude"], loc["longitude"]
-                name = loc["name"]
-
-            weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
-            async with session.get(weather_url) as r:
+            async with session.get(f"https://geocoding-api.open-meteo.com/v1/search?name={city}&count=1&format=json") as r:
+                geo = await r.json()
+                if not geo.get("results"): return None
+                loc = geo["results"][0]
+            async with session.get(f"https://api.open-meteo.com/v1/forecast?latitude={loc['latitude']}&longitude={loc['longitude']}&current_weather=true") as r:
                 data = await r.json()
                 cw = data.get("current_weather")
-                if not cw:
-                    return None
-
-                embed = discord.Embed(title=f"🌤️ Weather in {name}", color=discord.Color.blue())
-                embed.add_field(name="Temperature", value=f"{cw['temperature']}°C")
-                embed.add_field(name="Wind Speed", value=f"{cw['windspeed']} km/h")
-                embed.add_field(name="Wind Direction", value=f"{cw['winddirection']}°")
-                embed.set_footer(text="Updates automatically every hour.")
+                if not cw: return None
+                embed = main_embed(f"{EMOJI_INFO} Weather in {loc['name']}", f"**Temp:** `{cw['temperature']}°C`\n**Wind:** `{cw['windspeed']} km/h`\n**Direction:** `{cw['winddirection']}°`")
                 return embed
 
-    @app_commands.command(name="setup_weather", description="Setup hourly weather updates for a city")
+    @app_commands.command(name="setup_weather", description="Setup hourly weather updates")
     @app_commands.checks.has_permissions(administrator=True)
     async def setup_weather(self, interaction: discord.Interaction, channel: discord.TextChannel, city: str):
         embed = await self.get_weather_embed(city)
-        if not embed:
-            return await interaction.response.send_message("❌ City not found.", ephemeral=True)
-        
+        if not embed: return await interaction.response.send_message(embed=error_embed("City not found."), ephemeral=True)
         await db.set_weather_config(interaction.guild.id, channel.id, city)
-        await interaction.response.send_message(f"✅ Weather updates for **{city}** will be sent to {channel.mention} every hour.", ephemeral=True)
+        await interaction.response.send_message(embed=success_embed(f"Weather for **{city}** set in {channel.mention}."), ephemeral=True)
         await channel.send(embed=embed)
 
-    @app_commands.command(name="stop_weather", description="Stop weather updates for a city, or all cities")
+    @app_commands.command(name="stop_weather", description="Stop weather updates")
     @app_commands.checks.has_permissions(administrator=True)
     async def stop_weather(self, interaction: discord.Interaction, city: str = "all"):
         if city.lower() == "all":
             await db.remove_all_weather(interaction.guild.id)
-            await interaction.response.send_message("✅ Stopped all weather updates for this server.", ephemeral=True)
+            await interaction.response.send_message(embed=success_embed("Stopped all weather updates."), ephemeral=True)
         else:
             await db.remove_weather_config(interaction.guild.id, city)
-            await interaction.response.send_message(f"✅ Stopped weather updates for **{city}**.", ephemeral=True)
+            await interaction.response.send_message(embed=success_embed(f"Stopped updates for **{city}**."), ephemeral=True)
 
-async def setup(bot):
-    await bot.add_cog(Weather(bot))
+async def setup(bot): await bot.add_cog(Weather(bot))
