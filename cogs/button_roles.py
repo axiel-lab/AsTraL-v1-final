@@ -8,10 +8,14 @@ class RoleButton(discord.ui.Button):
     def __init__(self, role_id, label, emoji):
         super().__init__(label=label, style=discord.ButtonStyle.secondary, custom_id=f"role_{role_id}")
         self.role_id = role_id
-        if emoji: self.emoji = emoji
+        if emoji:
+            try: self.emoji = discord.PartialEmoji.from_str(emoji)
+            except: self.emoji = emoji # Fallback to unicode if it fails
+
     async def callback(self, interaction: discord.Interaction):
         role = interaction.guild.get_role(self.role_id)
         if not role: return await interaction.response.send_message(embed=error_embed("Role no longer exists."), ephemeral=True)
+        
         if role in interaction.user.roles:
             await interaction.user.remove_roles(role)
             await interaction.response.send_message(embed=error_embed(f"Removed {role.mention}"), ephemeral=True)
@@ -22,17 +26,20 @@ class RoleButton(discord.ui.Button):
 class DynamicRoleView(discord.ui.View):
     def __init__(self, buttons_data):
         super().__init__(timeout=None)
-        for b in buttons_data: self.add_item(RoleButton(int(b[1]), b[3], b[2]))
+        for b in buttons_data: 
+            self.add_item(RoleButton(int(b[1]), b[3], b[2]))
 
 class ButtonRoles(commands.Cog):
     def __init__(self, bot): self.bot = bot
+    
     async def cog_load(self):
         rows = await db.get_all_button_roles()
         grouped = {}
         for row in rows:
             if row[0] not in grouped: grouped[row[0]] = []
             grouped[row[0]].append(row)
-        for mid, buttons in grouped.items(): self.bot.add_view(DynamicRoleView(buttons), message_id=int(mid))
+        for mid, buttons in grouped.items(): 
+            self.bot.add_view(DynamicRoleView(buttons), message_id=int(mid))
 
     br_group = app_commands.Group(name="buttonrole", description="Manage button roles")
 
@@ -47,11 +54,13 @@ class ButtonRoles(commands.Cog):
     @app_commands.checks.has_permissions(administrator=True)
     async def br_add(self, interaction: discord.Interaction, message_id: str, role: discord.Role, label: str, emoji: str = None):
         try: msg = await interaction.channel.fetch_message(int(message_id))
-        except: return await interaction.response.send_message(embed=error_embed("Message not found."), ephemeral=True)
+        except: return await interaction.response.send_message(embed=error_embed("Message not found in this channel."), ephemeral=True)
+        
         await db.add_button_role(msg.id, role.id, emoji, label)
         rows = await db.get_button_roles_for_message(msg.id)
-        await msg.edit(view=DynamicRoleView(rows))
-        self.bot.add_view(DynamicRoleView(rows), message_id=msg.id)
+        view = DynamicRoleView(rows)
+        await msg.edit(view=view)
+        self.bot.add_view(view, message_id=msg.id)
         await interaction.response.send_message(embed=success_embed(f"Button added to `{msg.id}`."), ephemeral=True)
 
 async def setup(bot): await bot.add_cog(ButtonRoles(bot))
