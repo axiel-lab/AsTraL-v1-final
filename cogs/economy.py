@@ -26,7 +26,7 @@ class Economy(commands.Cog):
             return await ctx.send(embed=error_embed(f"Already claimed. Try in **{remaining // 3600}h {(remaining % 3600) // 60}m**."))
 
         amount = 4000
-        await db.update_balance(ctx.guild.id, ctx.author.id, amount)
+        await db.add_coins(ctx.guild.id, ctx.author.id, amount)
         await db.set_daily(ctx.guild.id, ctx.author.id, now)
         await ctx.send(embed=success_embed(f"You claimed your daily **{amount:,}** {EMOJI_COIN} coins!"))
 
@@ -40,10 +40,12 @@ class Economy(commands.Cog):
             return await ctx.send(embed=error_embed("You don't have enough coins."))
 
         result = random.choice(["Heads", "Tails"])
-        await db.update_balance(ctx.guild.id, ctx.author.id, -amount)
+        
+        # Deduct the bet
+        await db.add_coins(ctx.guild.id, ctx.author.id, -amount)
 
         if result == "Heads":
-            await db.update_balance(ctx.guild.id, ctx.author.id, amount * 2)
+            await db.add_coins(ctx.guild.id, ctx.author.id, amount * 2)
             await ctx.send(embed=success_embed(f"🪙 The coin landed on **{result}**! You won `{amount:,}` coins!"))
         else:
             await ctx.send(embed=error_embed(f"🪙 The coin landed on **{result}**. You lost `{amount:,}` coins."))
