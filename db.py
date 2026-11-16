@@ -367,12 +367,14 @@ async def delete_note(nid):
 # --- Weather ---
 async def set_weather_config(gid, cid, city):
     await db.weather_config.update_one(
-        {"guild_id": str(gid)},
-        {"$set": {"channel_id": str(cid), "city": city}},
+        {"guild_id": str(gid), "city": city.lower()},
+        {"$set": {"channel_id": str(cid), "city": city.lower()}},
         upsert=True
     )
 async def get_weather_configs():
     cursor = db.weather_config.find({})
     return [(doc["guild_id"], doc["channel_id"], doc["city"]) async for doc in cursor]
-async def remove_weather_config(gid):
-    await db.weather_config.delete_one({"guild_id": str(gid)})
+async def remove_weather_config(gid, city):
+    await db.weather_config.delete_one({"guild_id": str(gid), "city": city.lower()})
+async def remove_all_weather(gid):
+    await db.weather_config.delete_many({"guild_id": str(gid)})
