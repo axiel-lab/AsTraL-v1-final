@@ -358,3 +358,12 @@ async def get_ring(gid, uid):
     return doc["ring"] if doc else None
 async def remove_ring(gid, uid):
     await db.rings.delete_one({"guild_id": str(gid), "user_id": str(uid)})
+
+# Dev Logs
+async def set_devlog_channel(gid, cid):
+    await db.devlogs.update_one({"guild_id": str(gid)}, {"$set": {"channel_id": str(cid)}}, upsert=True)
+async def get_devlog_channel():
+    doc = await db.devlogs.find_one({})
+    return doc["channel_id"] if doc else None
+async def remove_devlog_channel(gid):
+    await db.devlogs.delete_one({"guild_id": str(gid)})
