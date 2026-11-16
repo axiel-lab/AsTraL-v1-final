@@ -1,5 +1,8 @@
 import discord
+from discord import app_commands
 from discord.ext import commands
+from ui import error_embed, main_embed, success_embed
+from config import THEME_COLOR, EMOJI_STAR
 
 class TicTacToeButton(discord.ui.Button):
     def __init__(self, x, y):
@@ -15,7 +18,7 @@ class TicTacToeButton(discord.ui.Button):
 
         if view.current_player == view.X:
             if interaction.user != view.player1:
-                return await interaction.response.send_message("It is not your turn!", ephemeral=True)
+                return await interaction.response.send_message(embed=error_embed("It is not your turn!"), ephemeral=True)
             self.style = discord.ButtonStyle.danger
             self.label = "X"
             view.board[self.y][self.x] = view.X
@@ -23,7 +26,7 @@ class TicTacToeButton(discord.ui.Button):
             content = f"It is now {view.player2.mention}'s turn (O)"
         else:
             if interaction.user != view.player2:
-                return await interaction.response.send_message("It is not your turn!", ephemeral=True)
+                return await interaction.response.send_message(embed=error_embed("It is not your turn!"), ephemeral=True)
             self.style = discord.ButtonStyle.success
             self.label = "O"
             view.board[self.y][self.x] = view.O
@@ -32,30 +35,31 @@ class TicTacToeButton(discord.ui.Button):
 
         self.disabled = True
         winner = view.check_board_winner()
+        
+        embed = main_embed(f"{EMOJI_STAR} Tic-Tac-Toe", content)
+        
         if winner is not None:
             if winner == view.X:
-                content = f"🎉 {view.player1.mention} won!"
+                embed.description = f"🎉 {view.player1.mention} won!"
             elif winner == view.O:
-                content = f"🎉 {view.player2.mention} won!"
+                embed.description = f"🎉 {view.player2.mention} won!"
             else:
-                content = "It's a tie!"
+                embed.description = "It's a tie!"
 
             for child in view.children:
                 child.disabled = True
+            view.stop()
 
-        await interaction.response.edit_message(content=content, view=view)
+        await interaction.response.edit_message(embed=embed, view=view)
 
 class TicTacToe(discord.ui.View):
-    children: list[TicTacToeButton]
-    X = -1
-    O = 1
-    Tie = 2
-
     def __init__(self, player1, player2):
-        super().__init__()
+        super().__init__(timeout=120)
         self.player1 = player1
         self.player2 = player2
-        self.current_player = self.X
+        self.current_player = 1
+        self.X = -1
+        self.O = 1
         self.board = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
 
         for x in range(3):
@@ -82,18 +86,22 @@ class TicTacToe(discord.ui.View):
         elif diag == -3: return self.X
 
         if all(i != 0 for row in self.board for i in row):
-            return self.Tie
+            return 2
         return None
 
 class Games(commands.Cog):
-    def __init__(self, bot): self.bot = bot
+    def __init__(self, bot): 
+        self.bot = bot
 
-    @commands.command(name="tictactoe", aliases=["ttt"])
-    async def tictactoe(self, ctx, opponent: discord.Member):
-        if opponent.bot or opponent == ctx.author:
-            return await ctx.send("You can't play against a bot or yourself.")
+    @app_commands.command(name="tictactoe", description="Play Tic-Tac-Toe against another member")
+    @app_commands.describe(opponent="The member you want to challenge")
+    async def tictactoe(self, interaction: discord.Interaction, opponent: discord.Member):
+        if opponent.bot or opponent == interaction.user:
+            return await interaction.response.send_message(embed=error_embed("You can't play against a bot or yourself."), ephemeral=True)
         
-        view = TicTacToe(ctx.author, opponent)
-        await ctx.send(f"Tic-Tac-Toe: {ctx.author.mention} (X) vs {opponent.mention} (O)\nIt is {ctx.author.mention}'s turn.", view=view)
+        view = TicTacToe(interaction.user, opponent)
+        embed = main_embed(f"{EMOJI_STAR} Tic-Tac-Toe", f"{interaction.user.mention} (X) vs {opponent.mention} (O)\n\nIt is {interaction.user.mention}'s turn.")
+        await interaction.response.send_message(embed=embed, view=view)
 
-async def setup(bot): await bot.add_cog(Games(bot))
+async def setup(bot): 
+    await bot.add_cog(Games(bot))
