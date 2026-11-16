@@ -2,7 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import db
-from utils.ui import success_embed, error_embed, main_embed
+from ui import success_embed, error_embed, main_embed
 from config import EMOJI_HEART, THEME_COLOR
 
 class Marriage(commands.Cog):
