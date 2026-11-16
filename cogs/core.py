@@ -2,7 +2,6 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from config import THEME_COLOR, BOT_NAME, EMOJI_GEAR, EMOJI_BAN, EMOJI_HEART, EMOJI_COIN, EMOJI_STAR
-from ui import success_embed, error_embed
 
 class HelpSelect(discord.ui.Select):
     def __init__(self, bot):
@@ -27,26 +26,21 @@ class HelpSelect(discord.ui.Select):
             embed.add_field(name="Servers", value=f"`{len(self.bot.guilds)}`", inline=True)
             embed.add_field(name="Commands", value=f"`{len(self.bot.tree.get_commands())}` Slash Commands", inline=True)
             embed.set_thumbnail(url=self.bot.user.display_avatar.url)
-            
         elif self.values[0] == "Admin & Config":
             embed.title = f"{EMOJI_GEAR} Admin & Config"
             embed.description = "`/set_prefix` • `/setup_devlogs` • `/ticket_setup` • `/buttonrole` • `/setup_honeypot` • `/welcome` • `/automod` • `/logging` • `/setup_weather`"
-            
         elif self.values[0] == "Moderation":
             embed.title = f"{EMOJI_BAN} Moderation"
             embed.description = "`/ban` • `/kick` • `/purge` • `/warn` • `/warnings` • `/lock` • `/unlock` • `/temprole` • `/note`"
-            
         elif self.values[0] == "Community":
             embed.title = f"{EMOJI_HEART} Community"
             embed.description = "`/rank` • `/leaderboard` • `/marry` • `/divorce` • `/couple` • `/shop` • `/daily` • `/balance` • `/set_birthday` • `/suggest` • `/highlight` • `/afk`"
-            
         elif self.values[0] == "Utility":
             embed.title = f"{EMOJI_COIN} Utility"
             embed.description = "`/userinfo` • `/serverinfo` • `/avatar` • `/remind` • `/translate` • `/snipe` • `/ping`"
-            
         elif self.values[0] == "Fun & Games":
             embed.title = f"{EMOJI_STAR} Fun & Games"
-            embed.description = "`/gstart` • `/poll` • `/tictactoe` • `/slots` • `/cf` • `/8ball` • `/coinflip` • `/roll` • `/imagine` • `/hug` • `/slap` • `/kiss` • `/quote`"
+            embed.description = "`/gstart` • `/poll` • `/tictactoe` • `/slots` • `/cf` • `/8ball` • `/roll` • `/imagine` • `/hug` • `/slap` • `/kiss` • `/quote`"
 
         await interaction.response.edit_message(embed=embed)
 
@@ -71,11 +65,7 @@ class Core(commands.Cog):
         embed.add_field(name="Commands", value=f"`{len(self.bot.tree.get_commands())}` Slash Commands", inline=True)
         embed.set_thumbnail(url=self.bot.user.display_avatar.url)
         
-        # ephemeral=True only works for slash commands
-        if ctx.interaction:
-            await ctx.send(embed=embed, view=HelpView(self.bot), ephemeral=True)
-        else:
-            await ctx.send(embed=embed, view=HelpView(self.bot))
+        await ctx.send(embed=embed, view=HelpView(self.bot), ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(Core(bot))
