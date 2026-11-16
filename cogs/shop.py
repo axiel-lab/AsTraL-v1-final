@@ -2,14 +2,13 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import db
-from config import THEME_COLOR, EMOJI_COIN, EMOJI_SUCCESS, EMOJI_SILVER_RING, EMOJI_GOLD_RING, EMOJI_DIAMOND_RING, EMOJI_LEGENDARY_RING
+from config import THEME_COLOR, EMOJI_COIN, EMOJI_SUCCESS, EMOJI_SILVER_RING, EMOJI_GOLD_RING, EMOJI_DIAMOND_RING
 from ui import success_embed, error_embed, main_embed
 
 RINGS = {
     "silver": {"name": f"{EMOJI_SILVER_RING} Silver Ring", "price": 5000},
-    "gold": {"name": f"{EMOJI_GOLD_RING} Golden Ring", "price": 25000},
-    "diamond": {"name": f"{EMOJI_DIAMOND_RING} Diamond Ring", "price": 50000},
-    "legendary": {"name": f"{EMOJI_LEGENDARY_RING} Legendary Ring", "price": 100000}
+    "gold": {"name": f"{EMOJI_GOLD_RING} Gold Ring", "price": 25000},
+    "diamond": {"name": f"{EMOJI_DIAMOND_RING} Diamond Ring", "price": 100000}
 }
 
 class Shop(commands.Cog):
@@ -26,7 +25,7 @@ class Shop(commands.Cog):
     async def buy(self, interaction: discord.Interaction, item: str):
         item = item.lower()
         if item not in RINGS:
-            return await interaction.response.send_message(embed=error_embed("Invalid ring. Options: `silver`, `gold`, `diamond`, `legendary`."), ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed("Invalid ring. Options: `silver`, `gold`, `diamond`."), ephemeral=True)
         
         if await db.get_ring(interaction.guild.id, interaction.user.id):
             return await interaction.response.send_message(embed=error_embed("You already own a ring! Use it with `/marry`."), ephemeral=True)
