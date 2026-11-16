@@ -96,12 +96,12 @@ class AIChat(commands.Cog):
                 return response
             print(f"[GEMINI ERROR] {response}")
 
-        return "Both AI APIs failed. Check Deplexo console logs for the exact reason."
+        return "Both AI APIs failed. Check `/test_ai` for the exact reason."
 
     async def query_groq(self, text, api_key):
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
         payload = {
-            "model": "llama-3.3-70b-versatile", # Updated model
+            "model": "llama-3.3-70b-versatile",
             "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": text}],
             "max_tokens": 150,
             "temperature": 0.8
@@ -120,7 +120,6 @@ class AIChat(commands.Cog):
         full_prompt = f"System: {SYSTEM_PROMPT}\n\nUser: {text}\n\nAI:"
         headers = {"Content-Type": "application/json"}
         payload = {"contents": [{"parts": [{"text": full_prompt}]}]}
-        # Updated API version and model
         url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key={api_key}"
         try:
             async with aiohttp.ClientSession() as session:
