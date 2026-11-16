@@ -5,16 +5,19 @@ import db
 import time
 import random
 from config import THEME_COLOR, EMOJI_COIN
-from ui import success_embed, error_embed
+from ui import success_embed, error_embed, main_embed
 
 class Economy(commands.Cog):
     def __init__(self, bot): self.bot = bot
 
-    @commands.hybrid_command(name="balance", description="Check your balance")
-    async def balance(self, ctx: commands.Context, member: discord.Member = None):
+    @commands.hybrid_command(name="cash", aliases=["balance", "bal"], description="Check your cash balance")
+    async def cash(self, ctx: commands.Context, member: discord.Member = None):
         member = member or ctx.author
         bal = await db.get_balance(ctx.guild.id, member.id)
-        await ctx.send(embed=discord.Embed(description=f"{EMOJI_COIN} {member.mention} has **{bal:,}** coins.", color=THEME_COLOR))
+        
+        embed = main_embed(f"{EMOJI_COIN} Cash Balance", f"{member.mention} currently has **{bal:,}** coins.")
+        embed.set_thumbnail(url=member.display_avatar.url)
+        await ctx.send(embed=embed)
 
     @commands.hybrid_command(name="daily", description="Claim your daily coins")
     async def daily(self, ctx: commands.Context):
@@ -23,25 +26,25 @@ class Economy(commands.Cog):
         
         if now - last_daily < 86400:
             remaining = 86400 - (now - last_daily)
-            return await ctx.send(embed=error_embed(f"Already claimed. Try in **{remaining // 3600}h {(remaining % 3600) // 60}m**."))
+            return await ctx.send(embed=error_embed(f"Already claimed. Try in **{remaining // 3600}h {(remaining % 3600) // 60}m**."), ephemeral=True)
 
         amount = 4000
         await db.add_coins(ctx.guild.id, ctx.author.id, amount)
         await db.set_daily(ctx.guild.id, ctx.author.id, now)
+        
         await ctx.send(embed=success_embed(f"You claimed your daily **{amount:,}** {EMOJI_COIN} coins!"))
 
     @commands.hybrid_command(name="cf", description="Flip a coin to double your money")
     async def coinflip(self, ctx: commands.Context, amount: int):
         if amount < 100:
-            return await ctx.send(embed=error_embed("Minimum bet is 100 coins."))
+            return await ctx.send(embed=error_embed("Minimum bet is 100 coins."), ephemeral=True)
             
         bal = await db.get_balance(ctx.guild.id, ctx.author.id)
         if bal < amount:
-            return await ctx.send(embed=error_embed("You don't have enough coins."))
+            return await ctx.send(embed=error_embed("You don't have enough coins."), ephemeral=True)
 
         result = random.choice(["Heads", "Tails"])
         
-        # Deduct the bet
         await db.add_coins(ctx.guild.id, ctx.author.id, -amount)
 
         if result == "Heads":
