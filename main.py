@@ -11,7 +11,6 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-# Custom Prefix Loader
 async def get_prefix(bot, message):
     if not message.guild: 
         return "!"
@@ -19,7 +18,8 @@ async def get_prefix(bot, message):
         p = await db.get_prefix(message.guild.id)
         return p if p else "!"
     except:
-        return "!" 
+        return "!"
+
 bot = commands.Bot(command_prefix=get_prefix, intents=intents)
 
 statuses = [
@@ -47,8 +47,8 @@ async def setup_hook():
         "cogs.suggestions", "cogs.weather", "cogs.roleplay", "cogs.highlights", "cogs.notes",
         "cogs.admin_tools", "cogs.vc_leveling", "cogs.antinuke", "cogs.marriage", 
         "cogs.birthdays", "cogs.chat_drops", "cogs.sticky_roles", "cogs.auto_responder", 
-        "cogs.honeypot", "cogs.shop", "cogs.prefix", "cogs.economy", "cogs.ai_image", "cogs.casino"
-        "cogs.devlogs"
+        "cogs.honeypot", "cogs.shop", "cogs.prefix", "cogs.economy", "cogs.ai_image", "cogs.casino", 
+        "cogs.devlogs" # THIS WAS MISSING
     ]
     
     for ext in extensions:
