@@ -48,6 +48,7 @@ async def setup_hook():
         "cogs.admin_tools", "cogs.vc_leveling", "cogs.antinuke", "cogs.marriage", 
         "cogs.birthdays", "cogs.chat_drops", "cogs.sticky_roles", "cogs.auto_responder", 
         "cogs.honeypot", "cogs.shop", "cogs.prefix", "cogs.economy", "cogs.ai_image", "cogs.casino"
+        "cogs.devlogs"
     ]
     
     for ext in extensions:
