@@ -2,7 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import db
-from config import THEME_COLOR, EMOJI_COIN, EMOJI_SUCCESS, EMOJI_SILVER_RING, EMOJI_GOLD_RING, EMOJI_DIAMOND_RING, EMOJI_LEGENDARY_RING
+from config import THEME_COLOR, EMOJI_COIN, EMOJI_SILVER_RING, EMOJI_GOLD_RING, EMOJI_DIAMOND_RING, EMOJI_LEGENDARY_RING
 from ui import success_embed, error_embed, main_embed
 
 RINGS = {
