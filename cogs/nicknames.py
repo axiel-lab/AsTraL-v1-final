@@ -64,22 +64,22 @@ class Nicknames(commands.Cog):
             if msg.content.lower() in [".reset", "reset"]:
                 try:
                     await msg.author.edit(nick=None)
-                    await msg.add_reaction(EMOJI_SUCCESS) # Uses your custom check
+                    await msg.add_reaction(discord.PartialEmoji.from_str(EMOJI_SUCCESS))
                 except discord.Forbidden:
-                    await msg.add_reaction(EMOJI_ERROR) # Uses your custom X
+                    await msg.add_reaction(discord.PartialEmoji.from_str(EMOJI_ERROR))
                     await msg.reply(f"{msg.author.mention}, I can't reset your name. My role might be lower than yours.", mention_author=True)
                     return
             else:
                 new_nick = clean_name(msg.content)
                 try:
                     await msg.author.edit(nick=new_nick)
-                    await msg.add_reaction(EMOJI_SUCCESS) # Uses your custom check
+                    await msg.add_reaction(discord.PartialEmoji.from_str(EMOJI_SUCCESS))
                 except discord.Forbidden:
-                    await msg.add_reaction(EMOJI_ERROR) # Uses your custom X
+                    await msg.add_reaction(discord.PartialEmoji.from_str(EMOJI_ERROR))
                     await msg.reply(f"{msg.author.mention}, I can't change your name. My role might be lower than yours.", mention_author=True)
                     return
                 except Exception as e:
-                    await msg.add_reaction(EMOJI_ERROR) # Uses your custom X
+                    await msg.add_reaction(discord.PartialEmoji.from_str(EMOJI_ERROR))
                     await msg.reply(f"{msg.author.mention}, an error occurred: {e}", mention_author=True)
                     return
 
