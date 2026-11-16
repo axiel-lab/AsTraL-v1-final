@@ -342,3 +342,19 @@ async def get_honeypot(gid):
     return doc if doc else None
 async def update_honeypot_bans(gid):
     await db.honeypot_config.update_one({"guild_id": str(gid)}, {"$inc": {"bans": 1}})
+
+# Prefixes
+async def set_prefix(gid, prefix):
+    await db.prefixes.update_one({"guild_id": str(gid)}, {"$set": {"prefix": prefix}}, upsert=True)
+async def get_prefix(gid):
+    doc = await db.prefixes.find_one({"guild_id": str(gid)})
+    return doc["prefix"] if doc else "!"
+
+# Rings 
+async def buy_ring(gid, uid, ring_name):
+    await db.rings.update_one({"guild_id": str(gid), "user_id": str(uid)}, {"$set": {"ring": ring_name}}, upsert=True)
+async def get_ring(gid, uid):
+    doc = await db.rings.find_one({"guild_id": str(gid), "user_id": str(uid)})
+    return doc["ring"] if doc else None
+async def remove_ring(gid, uid):
+    await db.rings.delete_one({"guild_id": str(gid), "user_id": str(uid)})
