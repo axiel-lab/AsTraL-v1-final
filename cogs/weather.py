@@ -30,7 +30,6 @@ class Weather(commands.Cog):
 
     async def get_weather_embed(self, city):
         async with aiohttp.ClientSession() as session:
-            # Get coordinates for the city
             geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={city}&count=1&language=en&format=json"
             async with session.get(geo_url) as r:
                 data = await r.json()
@@ -40,7 +39,6 @@ class Weather(commands.Cog):
                 lat, lon = loc["latitude"], loc["longitude"]
                 name = loc["name"]
 
-            # Get weather data
             weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
             async with session.get(weather_url) as r:
                 data = await r.json()
@@ -55,7 +53,7 @@ class Weather(commands.Cog):
                 embed.set_footer(text="Updates automatically every hour.")
                 return embed
 
-    @app_commands.command(name="setup_weather", description="Setup hourly weather updates")
+    @app_commands.command(name="setup_weather", description="Setup hourly weather updates for a city")
     @app_commands.checks.has_permissions(administrator=True)
     async def setup_weather(self, interaction: discord.Interaction, channel: discord.TextChannel, city: str):
         embed = await self.get_weather_embed(city)
@@ -66,11 +64,15 @@ class Weather(commands.Cog):
         await interaction.response.send_message(f"✅ Weather updates for **{city}** will be sent to {channel.mention} every hour.", ephemeral=True)
         await channel.send(embed=embed)
 
-    @app_commands.command(name="stop_weather", description="Stop hourly weather updates")
+    @app_commands.command(name="stop_weather", description="Stop weather updates for a city, or all cities")
     @app_commands.checks.has_permissions(administrator=True)
-    async def stop_weather(self, interaction: discord.Interaction):
-        await db.remove_weather_config(interaction.guild.id)
-        await interaction.response.send_message("✅ Weather updates stopped.", ephemeral=True)
+    async def stop_weather(self, interaction: discord.Interaction, city: str = "all"):
+        if city.lower() == "all":
+            await db.remove_all_weather(interaction.guild.id)
+            await interaction.response.send_message("✅ Stopped all weather updates for this server.", ephemeral=True)
+        else:
+            await db.remove_weather_config(interaction.guild.id, city)
+            await interaction.response.send_message(f"✅ Stopped weather updates for **{city}**.", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(Weather(bot))
