@@ -364,18 +364,6 @@ async def delete_note(nid):
     from bson.objectid import ObjectId
     await db.staff_notes.delete_one({"_id": ObjectId(nid)})
 
-# --- AI Channel ---
-async def set_ai_channel(gid, cid):
-    await db.ai_config.update_one(
-        {"guild_id": str(gid)},
-        {"$set": {"channel_id": str(cid)}},
-        upsert=True
-    )
-async def get_ai_channel(gid):
-    doc = await db.ai_config.find_one({"guild_id": str(gid)})
-    return doc["channel_id"] if doc else None
-
-
 # --- Weather ---
 async def set_weather_config(gid, cid, city):
     await db.weather_config.update_one(
