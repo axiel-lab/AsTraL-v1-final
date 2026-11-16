@@ -5,6 +5,7 @@ import db
 import random
 import discord_ios
 from config import DISCORD_TOKEN, DEV_GUILD_ID
+from utils.ui import error_embed, warning_embed
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -36,7 +37,8 @@ async def setup_hook():
         "cogs.lockdown", "cogs.tictactoe", "cogs.temproles", "cogs.translate", 
         "cogs.suggestions", "cogs.weather", "cogs.roleplay", "cogs.highlights", "cogs.notes",
         "cogs.admin_tools", "cogs.vc_leveling", "cogs.antinuke", "cogs.marriage", 
-        "cogs.birthdays", "cogs.chat_drops", "cogs.sticky_roles", "cogs.auto_responder", "cogs.honeypot"
+        "cogs.birthdays", "cogs.chat_drops", "cogs.sticky_roles", "cogs.auto_responder", 
+        "cogs.honeypot", "cogs.shop"
     ]
     for ext in extensions:
         try:
@@ -55,18 +57,18 @@ async def on_ready():
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
     if isinstance(error, discord.app_commands.CommandOnCooldown):
-        msg = f"⏳ Slow down! Try again in `{error.retry_after:.2f}s`."
+        embed = warning_embed(f"Slow down. Try again in **{error.retry_after:.1f}s**.")
     elif isinstance(error, discord.app_commands.MissingPermissions):
-        msg = "❌ You don't have permission to use this command."
+        embed = error_embed("You do not have the required permissions to use this.")
     else:
-        msg = f"❌ Error: `{str(error)}`"
+        embed = error_embed("An unexpected error occurred.")
         print(f"Command Error: {error}")
 
     try:
         if not interaction.response.is_done():
-            await interaction.response.send_message(msg, ephemeral=True)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
         else:
-            await interaction.followup.send(msg, ephemeral=True)
+            await interaction.followup.send(embed=embed, ephemeral=True)
     except:
         pass
 
