@@ -2,7 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import db
-from utils.ui import success_embed, error_embed, warning_embed, main_embed
+from ui import success_embed, error_embed, warning_embed, main_embed
 from config import EMOJI_WARN, THEME_COLOR
 
 class Warnings(commands.Cog):
