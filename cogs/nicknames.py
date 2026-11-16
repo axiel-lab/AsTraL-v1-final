@@ -11,7 +11,7 @@ def clean_name(text):
 def get_rules_embed():
     embed = discord.Embed(
         title="📌 Nickname Setup",
-        description="Type your name below to set your nickname.\n\n**Restricted characters:**\n`!@#$%^&*()<>?{}`\n\nIf successful, I will react with ✅. If I cannot change your name, I will react with ❌ and tell you why.",
+        description="Type your name below to set your nickname.\n**Type `.reset` to remove your nickname.**\n\n**Restricted characters:**\n`!@#$%^&*()<>?{}`\n\nIf successful, I will react with ✅. If I cannot change your name, I will react with ❌ and tell you why.",
         color=discord.Color.blurple()
     )
     return embed
@@ -26,7 +26,6 @@ class Nicknames(commands.Cog):
         if not interaction.guild.me.guild_permissions.manage_nicknames:
             return await interaction.response.send_message("❌ Bot missing Manage Nicknames permission.", ephemeral=True)
         
-        # Store a dummy string since the embed is hardcoded
         await db.set_nickname_channel(interaction.guild.id, channel.id, "rules_embed")
         
         msg = await channel.send(embed=get_rules_embed())
@@ -41,19 +40,30 @@ class Nicknames(commands.Cog):
 
         config = await db.get_nickname_config(msg.guild.id)
         if config and str(msg.channel.id) == str(config[0]):
-            new_nick = clean_name(msg.content)
             
-            try:
-                await msg.author.edit(nick=new_nick)
-                await msg.add_reaction("✅")
-            except discord.Forbidden:
-                await msg.add_reaction("❌")
-                await msg.reply(f"{msg.author.mention}, I can't change your name. My role might be lower than yours, or I lack permissions.", mention_author=True)
-                return
-            except Exception as e:
-                await msg.add_reaction("❌")
-                await msg.reply(f"{msg.author.mention}, an error occurred: {e}", mention_author=True)
-                return
+            # Check for reset command
+            if msg.content.lower() in [".reset", "reset"]:
+                try:
+                    await msg.author.edit(nick=None)
+                    await msg.add_reaction("✅")
+                except discord.Forbidden:
+                    await msg.add_reaction("❌")
+                    await msg.reply(f"{msg.author.mention}, I can't reset your name. My role might be lower than yours.", mention_author=True)
+                    return
+            else:
+                # Normal nickname change
+                new_nick = clean_name(msg.content)
+                try:
+                    await msg.author.edit(nick=new_nick)
+                    await msg.add_reaction("✅")
+                except discord.Forbidden:
+                    await msg.add_reaction("❌")
+                    await msg.reply(f"{msg.author.mention}, I can't change your name. My role might be lower than yours.", mention_author=True)
+                    return
+                except Exception as e:
+                    await msg.add_reaction("❌")
+                    await msg.reply(f"{msg.author.mention}, an error occurred: {e}", mention_author=True)
+                    return
 
             # Delete old sticky note and send new one
             sticky_data = await db.get_sticky(msg.channel.id)
