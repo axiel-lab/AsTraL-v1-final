@@ -3,6 +3,7 @@ from discord import app_commands
 from discord.ext import commands
 import db
 import re
+from config import THEME_COLOR, EMOJI_INFO, EMOJI_WARN, EMOJI_SUCCESS, EMOJI_ERROR, EMOJI_PIN
 
 def clean_name(text):
     cleaned = re.sub(r'[!@#$%^&*()<>?{}]', '', text).strip()
@@ -10,10 +11,29 @@ def clean_name(text):
 
 def get_rules_embed():
     embed = discord.Embed(
-        title="📌 Nickname Setup",
-        description="Type your name below to set your nickname.\n**Type `.reset` to remove your nickname.**\n\n**Restricted characters:**\n`!@#$%^&*()<>?{}`\n\nIf successful, I will react with ✅. If I cannot change your name, I will react with ❌ and tell you why.",
-        color=discord.Color.blurple()
+        title=f"{EMOJI_PIN} Nickname Setup",
+        description=f"{EMOJI_INFO} **How to Use**\nJust type the name you want and send it here — we will change it!",
+        color=THEME_COLOR
     )
+    
+    embed.add_field(
+        name=f"{EMOJI_WARN} Nickname Rules",
+        value=(
+            "• Only standard text characters are allowed (no fancy fonts).\n"
+            "• Offensive or inappropriate names are not allowed.\n"
+            "• Names must not start with a symbol.\n"
+            "• Bengali (Bangla) names are allowed.\n"
+            "• Emojis can only be used at the end of the name."
+        ),
+        inline=False
+    )
+    
+    embed.add_field(
+        name=f"{EMOJI_SUCCESS} Reset",
+        value="Use `.reset` to reset your name back to default.",
+        inline=False
+    )
+    
     return embed
 
 class Nicknames(commands.Cog):
@@ -41,31 +61,28 @@ class Nicknames(commands.Cog):
         config = await db.get_nickname_config(msg.guild.id)
         if config and str(msg.channel.id) == str(config[0]):
             
-            # Check for reset command
             if msg.content.lower() in [".reset", "reset"]:
                 try:
                     await msg.author.edit(nick=None)
-                    await msg.add_reaction("✅")
+                    await msg.add_reaction(EMOJI_SUCCESS) # Uses your custom check
                 except discord.Forbidden:
-                    await msg.add_reaction("❌")
+                    await msg.add_reaction(EMOJI_ERROR) # Uses your custom X
                     await msg.reply(f"{msg.author.mention}, I can't reset your name. My role might be lower than yours.", mention_author=True)
                     return
             else:
-                # Normal nickname change
                 new_nick = clean_name(msg.content)
                 try:
                     await msg.author.edit(nick=new_nick)
-                    await msg.add_reaction("✅")
+                    await msg.add_reaction(EMOJI_SUCCESS) # Uses your custom check
                 except discord.Forbidden:
-                    await msg.add_reaction("❌")
+                    await msg.add_reaction(EMOJI_ERROR) # Uses your custom X
                     await msg.reply(f"{msg.author.mention}, I can't change your name. My role might be lower than yours.", mention_author=True)
                     return
                 except Exception as e:
-                    await msg.add_reaction("❌")
+                    await msg.add_reaction(EMOJI_ERROR) # Uses your custom X
                     await msg.reply(f"{msg.author.mention}, an error occurred: {e}", mention_author=True)
                     return
 
-            # Delete old sticky note and send new one
             sticky_data = await db.get_sticky(msg.channel.id)
             if sticky_data:
                 old_msg_id = sticky_data[0]
