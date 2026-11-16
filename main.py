@@ -35,7 +35,8 @@ async def setup_hook():
         "cogs.polls", "cogs.snipe", "cogs.counting", "cogs.embeds", "cogs.warnings", 
         "cogs.lockdown", "cogs.tictactoe", "cogs.temproles", "cogs.translate", 
         "cogs.suggestions", "cogs.weather", "cogs.roleplay", "cogs.highlights", "cogs.notes",
-        "cogs.admin_tools"
+        "cogs.admin_tools", "cogs.vc_leveling", "cogs.antinuke", "cogs.marriage", 
+        "cogs.birthdays", "cogs.chat_drops", "cogs.sticky_roles", "cogs.auto_responder", "cogs.honeypot"
     ]
     for ext in extensions:
         try:
