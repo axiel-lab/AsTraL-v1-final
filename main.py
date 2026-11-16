@@ -4,14 +4,23 @@ import os
 import db
 import random
 import discord_ios
-from config import DISCORD_TOKEN, DEV_GUILD_ID
+from config import DISCORD_TOKEN
 from ui import error_embed, warning_embed
 
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+# Custom Prefix Loader
+async def get_prefix(bot, message):
+    if not message.guild: 
+        return "!"
+    try:
+        p = await db.get_prefix(message.guild.id)
+        return p if p else "!"
+    except:
+        return "!" 
+bot = commands.Bot(command_prefix=get_prefix, intents=intents)
 
 statuses = [
     discord.Activity(type=discord.ActivityType.watching, name="over the server"),
@@ -38,8 +47,9 @@ async def setup_hook():
         "cogs.suggestions", "cogs.weather", "cogs.roleplay", "cogs.highlights", "cogs.notes",
         "cogs.admin_tools", "cogs.vc_leveling", "cogs.antinuke", "cogs.marriage", 
         "cogs.birthdays", "cogs.chat_drops", "cogs.sticky_roles", "cogs.auto_responder", 
-        "cogs.honeypot", "cogs.shop"
+        "cogs.honeypot", "cogs.shop", "cogs.prefix", "cogs.economy", "cogs.ai_image", "cogs.casino"
     ]
+    
     for ext in extensions:
         try:
             await bot.load_extension(ext)
