@@ -2,6 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from config import THEME_COLOR, BOT_NAME, EMOJI_GEAR, EMOJI_BAN, EMOJI_HEART, EMOJI_COIN, EMOJI_STAR
+from ui import success_embed, error_embed
 
 class HelpSelect(discord.ui.Select):
     def __init__(self, bot):
@@ -29,68 +30,23 @@ class HelpSelect(discord.ui.Select):
             
         elif self.values[0] == "Admin & Config":
             embed.title = f"{EMOJI_GEAR} Admin & Config"
-            embed.description = (
-                "`/cc` - Custom Commands setup\n"
-                "`/ticket` - Support ticket system\n"
-                "`/buttonrole` - Role self-assignment\n"
-                "`/setup_honeypot` - Trap channel for compromised accounts\n"
-                "`/welcome` - Welcome messages & autorole\n"
-                "`/automod` - Anti-spam, links, and caps\n"
-                "`/logging` - Message and member logs\n"
-                "`/setup_weather` - Hourly weather updates"
-            )
+            embed.description = "`/set_prefix` • `/setup_devlogs` • `/ticket_setup` • `/buttonrole` • `/setup_honeypot` • `/welcome` • `/automod` • `/logging` • `/setup_weather`"
             
         elif self.values[0] == "Moderation":
             embed.title = f"{EMOJI_BAN} Moderation"
-            embed.description = (
-                "`/ban` - Ban a member\n"
-                "`/kick` - Kick a member\n"
-                "`/purge` - Bulk delete messages\n"
-                "`/warn` - Warn a member\n"
-                "`/warnings` - View user warnings\n"
-                "`/lock` `/unlock` - Channel lockdown\n"
-                "`/temprole` - Temporary roles\n"
-                "`/note` - Staff notes on users"
-            )
+            embed.description = "`/ban` • `/kick` • `/purge` • `/warn` • `/warnings` • `/lock` • `/unlock` • `/temprole` • `/note`"
             
         elif self.values[0] == "Community":
             embed.title = f"{EMOJI_HEART} Community"
-            embed.description = (
-                "`/rank` - Check your level\n"
-                "`/leaderboard` - Top active users\n"
-                "`/marry` `/divorce` `/couple` - Marriage system\n"
-                "`/shop` - Buy items\n"
-                "`/set_birthday` - Setup birthday announcements\n"
-                "`/suggest` - Submit a suggestion\n"
-                "`/highlight` - Get pinged for keywords\n"
-                "`/afk` - Set your AFK status"
-            )
+            embed.description = "`/rank` • `/leaderboard` • `/marry` • `/divorce` • `/couple` • `/shop` • `/daily` • `/balance` • `/set_birthday` • `/suggest` • `/highlight` • `/afk`"
             
         elif self.values[0] == "Utility":
             embed.title = f"{EMOJI_COIN} Utility"
-            embed.description = (
-                "`/userinfo` - User details\n"
-                "`/serverinfo` - Server details\n"
-                "`/avatar` - Get user avatars\n"
-                "`/remind` - Set a reminder\n"
-                "`/translate` - Translate text\n"
-                "`/weather` - Check current weather\n"
-                "`/snipe` - See recently deleted messages\n"
-                "`/ping` - Check bot latency"
-            )
+            embed.description = "`/userinfo` • `/serverinfo` • `/avatar` • `/remind` • `/translate` • `/snipe` • `/ping`"
             
         elif self.values[0] == "Fun & Games":
             embed.title = f"{EMOJI_STAR} Fun & Games"
-            embed.description = (
-                "`/gstart` - Start a giveaway\n"
-                "`/poll` - Create a button poll\n"
-                "`!tictactoe` - Play a game of Tic-Tac-Toe\n"
-                "`/slots` - Gamble your coins\n"
-                "`/8ball` `/coinflip` `/roll` - Random fun\n"
-                "`/hug` `/slap` `/kiss` - Roleplay actions\n"
-                "`/quote` - Random server quotes\n"
-                "`/counting` - Setup a counting channel"
-            )
+            embed.description = "`/gstart` • `/poll` • `/tictactoe` • `/slots` • `/cf` • `/8ball` • `/coinflip` • `/roll` • `/imagine` • `/hug` • `/slap` • `/kiss` • `/quote`"
 
         await interaction.response.edit_message(embed=embed)
 
@@ -103,8 +59,8 @@ class Core(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="help", description="View all bot commands")
-    async def help(self, interaction: discord.Interaction):
+    @commands.hybrid_command(name="help", description="View all bot commands")
+    async def help(self, ctx: commands.Context):
         embed = discord.Embed(
             title=f"{EMOJI_GEAR} {BOT_NAME} | Help Menu",
             description="Welcome to the help menu. Use the dropdown below to explore my commands.",
@@ -115,7 +71,11 @@ class Core(commands.Cog):
         embed.add_field(name="Commands", value=f"`{len(self.bot.tree.get_commands())}` Slash Commands", inline=True)
         embed.set_thumbnail(url=self.bot.user.display_avatar.url)
         
-        await interaction.response.send_message(embed=embed, view=HelpView(self.bot), ephemeral=True)
+        # ephemeral=True only works for slash commands
+        if ctx.interaction:
+            await ctx.send(embed=embed, view=HelpView(self.bot), ephemeral=True)
+        else:
+            await ctx.send(embed=embed, view=HelpView(self.bot))
 
 async def setup(bot):
     await bot.add_cog(Core(bot))
