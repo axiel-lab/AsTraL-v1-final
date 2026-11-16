@@ -1,6 +1,8 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
+from config import THEME_COLOR, EMOJI_SUCCESS, EMOJI_ERROR
+from ui import success_embed, error_embed
 
 class VerifyButton(discord.ui.View):
     def __init__(self, role_id): 
@@ -11,13 +13,13 @@ class VerifyButton(discord.ui.View):
     async def verify(self, interaction: discord.Interaction, button: discord.ui.Button):
         role = interaction.guild.get_role(self.role_id)
         if not role:
-            return await interaction.response.send_message("❌ The verification role was deleted. Please contact an admin.", ephemeral=True)
+            return await interaction.response.send_message(embed=error_embed("The verification role was deleted. Contact an admin."), ephemeral=True)
         
         try:
             await interaction.user.add_roles(role)
-            await interaction.response.send_message("✅ Verified!", ephemeral=True)
+            await interaction.response.send_message(embed=success_embed("Verified!"), ephemeral=True)
         except discord.Forbidden:
-            await interaction.response.send_message("❌ I don't have permission to give you this role. (My role is too low).", ephemeral=True)
+            await interaction.response.send_message(embed=error_embed("I don't have permission to give you this role. (My role is too low)."), ephemeral=True)
 
 class Verification(commands.Cog):
     def __init__(self, bot): self.bot = bot
@@ -25,8 +27,8 @@ class Verification(commands.Cog):
     @app_commands.command(name="verify_panel", description="Send a verification panel")
     @app_commands.checks.has_permissions(administrator=True)
     async def verify_panel(self, interaction: discord.Interaction, role: discord.Role):
-        embed = discord.Embed(title="Verification", description="Click below to verify and gain access.", color=discord.Color.green())
+        embed = discord.Embed(title="Verification", description="Click below to verify and gain access.", color=THEME_COLOR)
         await interaction.channel.send(embed=embed, view=VerifyButton(role.id))
-        await interaction.response.send_message("✅ Panel sent.", ephemeral=True)
+        await interaction.response.send_message(embed=success_embed("Panel sent."), ephemeral=True)
 
 async def setup(bot): await bot.add_cog(Verification(bot))
