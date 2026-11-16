@@ -1,58 +1,32 @@
 import discord
 from discord import app_commands
-from discord.ext import commands, tasks
-import aiohttp
+from discord.ext import commands
 import db
-from ui import success_embed, error_embed, main_embed
-from config import EMOJI_INFO
+from ui import success_embed, main_embed
 
-class Weather(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
-        self.weather_loop.start()
-    def cog_unload(self): self.weather_loop.cancel()
+class Logging(commands.Cog):
+    def __init__(self, bot): self.bot = bot
 
-    @tasks.loop(hours=1)
-    async def weather_loop(self):
-        for gid, cid, city in await db.get_weather_configs():
-            channel = self.bot.get_channel(int(cid))
-            if channel:
-                embed = await self.get_weather_embed(city)
-                if embed: await channel.send(embed=embed)
-
-    @weather_loop.before_loop
-    async def before(self): await self.bot.wait_until_ready()
-
-    async def get_weather_embed(self, city):
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"https://geocoding-api.open-meteo.com/v1/search?name={city}&count=1&format=json") as r:
-                geo = await r.json()
-                if not geo.get("results"): return None
-                loc = geo["results"][0]
-            async with session.get(f"https://api.open-meteo.com/v1/forecast?latitude={loc['latitude']}&longitude={loc['longitude']}&current_weather=true") as r:
-                data = await r.json()
-                cw = data.get("current_weather")
-                if not cw: return None
-                embed = main_embed(f"{EMOJI_INFO} Weather in {loc['name']}", f"**Temp:** `{cw['temperature']}°C`\n**Wind:** `{cw['windspeed']} km/h`\n**Direction:** `{cw['winddirection']}°`")
-                return embed
-
-    @app_commands.command(name="setup_weather", description="Setup hourly weather updates")
+    @app_commands.command(name="logging", description="Setup server logs")
     @app_commands.checks.has_permissions(administrator=True)
-    async def setup_weather(self, interaction: discord.Interaction, channel: discord.TextChannel, city: str):
-        embed = await self.get_weather_embed(city)
-        if not embed: return await interaction.response.send_message(embed=error_embed("City not found."), ephemeral=True)
-        await db.set_weather_config(interaction.guild.id, channel.id, city)
-        await interaction.response.send_message(embed=success_embed(f"Weather for **{city}** set in {channel.mention}."), ephemeral=True)
-        await channel.send(embed=embed)
+    async def logging(self, interaction: discord.Interaction, message_logs: discord.TextChannel, member_logs: discord.TextChannel):
+        await db.set_logging(interaction.guild.id, message_logs.id, member_logs.id)
+        await interaction.response.send_message(embed=success_embed("Logging configured."), ephemeral=True)
 
-    @app_commands.command(name="stop_weather", description="Stop weather updates")
-    @app_commands.checks.has_permissions(administrator=True)
-    async def stop_weather(self, interaction: discord.Interaction, city: str = "all"):
-        if city.lower() == "all":
-            await db.remove_all_weather(interaction.guild.id)
-            await interaction.response.send_message(embed=success_embed("Stopped all weather updates."), ephemeral=True)
-        else:
-            await db.remove_weather_config(interaction.guild.id, city)
-            await interaction.response.send_message(embed=success_embed(f"Stopped updates for **{city}**."), ephemeral=True)
+    @commands.Cog.listener()
+    async def on_message_delete(self, message):
+        if message.author.bot or not message.guild: return
+        config = await db.get_logging(message.guild.id)
+        if config and config[0]:
+            channel = message.guild.get_channel(int(config[0]))
+            if channel: await channel.send(embed=main_embed("Message Deleted", f"**Author:** {message.author.mention}\n**Channel:** {message.channel.mention}\n**Content:** {message.content or 'None'}"))
 
-async def setup(bot): await bot.add_cog(Weather(bot))
+    @commands.Cog.listener()
+    async def on_message_edit(self, before, after):
+        if before.author.bot or not before.guild or before.content == after.content: return
+        config = await db.get_logging(before.guild.id)
+        if config and config[0]:
+            channel = before.guild.get_channel(int(config[0]))
+            if channel: await channel.send(embed=main_embed("Message Edited", f"**Author:** {before.author.mention}\n**Channel:** {before.channel.mention}\n**Before:** {before.content[:500]}\n**After:** {after.content[:500]}"))
+
+async def setup(bot): await bot.add_cog(Logging(bot))
