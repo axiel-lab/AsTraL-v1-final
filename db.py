@@ -25,6 +25,8 @@ async def init():
     await db.sticky_roles.create_index([("guild_id", 1), ("user_id", 1)], unique=True)
     await db.autoresponders.create_index([("guild_id", 1), ("trigger", 1)], unique=True)
     await db.honeypot_config.create_index([("guild_id", 1)], unique=True)
+    await db.weather_config.create_index([("guild_id", 1), ("city", 1)], unique=True)
+    await db.rings.create_index([("guild_id", 1), ("user_id", 1)], unique=True)
 
 # Commands
 async def save(gid, name, response, uid):
@@ -84,7 +86,7 @@ async def get_giveaways():
 async def remove_giveaway(mid):
     await db.giveaways.delete_one({"message_id": str(mid)})
 
-# Levels
+# Levels & Economy
 async def get_level_data(gid, uid):
     doc = await db.levels.find_one({"guild_id": str(gid), "user_id": str(uid)})
     if doc: return (doc["xp"], doc["level"], doc["last_msg"])
@@ -94,8 +96,6 @@ async def update_level_data(gid, uid, xp, lvl, last):
 async def get_top_levels(gid):
     cursor = db.levels.find({"guild_id": str(gid)}).sort("xp", -1).limit(10)
     return [(doc["user_id"], doc["xp"], doc["level"]) async for doc in cursor]
-
-# Economy
 async def add_coins(gid, uid, amount):
     await db.economy.update_one({"guild_id": str(gid), "user_id": str(uid)}, {"$inc": {"balance": amount}}, upsert=True)
 async def get_balance(gid, uid):
@@ -112,15 +112,13 @@ async def get_button_roles_for_message(mid):
     cursor = db.button_roles.find({"message_id": str(mid)})
     return [(doc["message_id"], doc["role_id"], doc["emoji"], doc["label"]) async for doc in cursor]
 
-# AutoMod
+# AutoMod & Logging
 async def set_automod(gid, log, inv, spam, caps, links):
     await db.automod_config.update_one({"guild_id": str(gid)}, {"$set": {"log_channel": str(log) if log else None, "anti_invite": inv, "anti_spam": spam, "anti_caps": caps, "anti_links": links}}, upsert=True)
 async def get_automod(gid):
     doc = await db.automod_config.find_one({"guild_id": str(gid)})
     if doc: return (doc.get("log_channel"), doc["anti_invite"], doc["anti_spam"], doc["anti_caps"], doc["anti_links"])
     return None
-
-# Logging
 async def set_logging(gid, msg, mem):
     await db.logging_config.update_one({"guild_id": str(gid)}, {"$set": {"msg_log": str(msg) if msg else None, "member_log": str(mem) if mem else None}}, upsert=True)
 async def get_logging(gid):
@@ -288,7 +286,7 @@ async def remove_weather_config(gid, city):
 async def remove_all_weather(gid):
     await db.weather_config.delete_many({"guild_id": str(gid)})
 
-# Marriage
+# Marriage & Rings
 async def get_marriage(gid, uid):
     doc = await db.marriages.find_one({"guild_id": str(gid), "user_id": str(uid)})
     return doc["partner_id"] if doc else None
@@ -300,6 +298,13 @@ async def remove_marriage(gid, uid):
     await db.marriages.delete_one({"guild_id": str(gid), "user_id": str(uid)})
     if partner:
         await db.marriages.delete_one({"guild_id": str(gid), "user_id": str(partner)})
+async def buy_ring(gid, uid):
+    await db.rings.update_one({"guild_id": str(gid), "user_id": str(uid)}, {"$set": {"has_ring": True}}, upsert=True)
+async def has_ring(gid, uid):
+    doc = await db.rings.find_one({"guild_id": str(gid), "user_id": str(uid)})
+    return doc["has_ring"] if doc else False
+async def remove_ring(gid, uid):
+    await db.rings.delete_one({"guild_id": str(gid), "user_id": str(uid)})
 
 # Birthdays
 async def set_birthday(gid, uid, month, day):
