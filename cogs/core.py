@@ -59,6 +59,7 @@ class HelpSelect(discord.ui.Select):
                 "`/rank` - Check your level\n"
                 "`/leaderboard` - Top active users\n"
                 "`/marry` `/divorce` `/couple` - Marriage system\n"
+                "`/shop` - Buy items\n"
                 "`/set_birthday` - Setup birthday announcements\n"
                 "`/suggest` - Submit a suggestion\n"
                 "`/highlight` - Get pinged for keywords\n"
@@ -96,7 +97,7 @@ class HelpSelect(discord.ui.Select):
 class HelpView(discord.ui.View):
     def __init__(self, bot):
         super().__init__(timeout=180)
-        self.add_select(HelpSelect(bot))
+        self.add_item(HelpSelect(bot))
 
 class Core(commands.Cog):
     def __init__(self, bot):
