@@ -5,7 +5,7 @@ import db
 import random
 import discord_ios
 from config import DISCORD_TOKEN, DEV_GUILD_ID
-from utils.ui import error_embed, warning_embed
+from ui import error_embed, warning_embed
 
 intents = discord.Intents.default()
 intents.message_content = True
