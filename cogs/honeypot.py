@@ -2,7 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import db
-from config import THEME_COLOR, EMOJI_WARNING
+from config import THEME_COLOR
 from ui import success_embed
 
 class Honeypot(commands.Cog):
@@ -12,7 +12,7 @@ class Honeypot(commands.Cog):
     @app_commands.checks.has_permissions(administrator=True)
     async def setup_honeypot(self, interaction: discord.Interaction, channel: discord.TextChannel):
         embed = discord.Embed(
-            title=f"{EMOJI_WARNING} Security Trap",
+            title="🍯 Security Trap",
             description="This channel is a honeypot for compromised accounts.\nSending any message here will result in an immediate **kick**.\n\n",
             color=THEME_COLOR
         )
@@ -21,7 +21,7 @@ class Honeypot(commands.Cog):
         
         msg = await channel.send(embed=embed)
         await db.set_honeypot(interaction.guild.id, channel.id, msg.id)
-        await interaction.response.send_message(embed=success_embed(f"Honeypot deployed in {channel.mention}."), ephemeral=True)
+        await interaction.response.send_message(embed=success_embed(f"🍯 Honeypot deployed in {channel.mention}."), ephemeral=True)
 
     @commands.Cog.listener()
     async def on_message(self, msg):
