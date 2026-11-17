@@ -14,9 +14,27 @@ class Economy(commands.Cog):
     async def cash(self, ctx: commands.Context, member: discord.Member = None):
         member = member or ctx.author
         bal = await db.get_balance(ctx.guild.id, member.id)
-        
         embed = main_embed(f"{EMOJI_COIN} Cash Balance", f"{member.mention} currently has **{bal:,}** coins.")
         embed.set_thumbnail(url=member.display_avatar.url)
+        await ctx.send(embed=embed)
+
+    @commands.hybrid_command(name="pay", aliases=["transfer", "give"], description="Transfer coins to another user")
+    async def pay(self, ctx: commands.Context, member: discord.Member, amount: int):
+        if member.bot or member == ctx.author:
+            return await ctx.send(embed=error_embed("You cannot transfer money to yourself or a bot."), ephemeral=True)
+            
+        if amount < 100:
+            return await ctx.send(embed=error_embed("Minimum transfer amount is 100 coins."), ephemeral=True)
+            
+        sender_bal = await db.get_balance(ctx.guild.id, ctx.author.id)
+        if sender_bal < amount:
+            return await ctx.send(embed=error_embed("You don't have enough coins to transfer."), ephemeral=True)
+
+        # Deduct from sender, add to receiver
+        await db.add_coins(ctx.guild.id, ctx.author.id, -amount)
+        await db.add_coins(ctx.guild.id, member.id, amount)
+        
+        embed = main_embed(f"{EMOJI_COIN} Transfer Successful", f"You transferred **{amount:,}** coins to {member.mention}.")
         await ctx.send(embed=embed)
 
     @commands.hybrid_command(name="daily", description="Claim your daily coins")
@@ -31,27 +49,19 @@ class Economy(commands.Cog):
         amount = 4000
         await db.add_coins(ctx.guild.id, ctx.author.id, amount)
         await db.set_daily(ctx.guild.id, ctx.author.id, now)
-        
         await ctx.send(embed=success_embed(f"You claimed your daily **{amount:,}** {EMOJI_COIN} coins!"))
 
     @commands.hybrid_command(name="cf", description="Flip a coin to double your money")
     async def coinflip(self, ctx: commands.Context, amount: str):
         bal = await db.get_balance(ctx.guild.id, ctx.author.id)
         
-        # Allow the user to type "all"
-        if amount.lower() == "all":
-            bet = bal
+        if amount.lower() == "all": bet = bal
         else:
-            try:
-                bet = int(amount)
-            except ValueError:
-                return await ctx.send(embed=error_embed("Please provide a valid number or type `all`."), ephemeral=True)
+            try: bet = int(amount)
+            except ValueError: return await ctx.send(embed=error_embed("Provide a valid number or type `all`."), ephemeral=True)
 
-        if bet < 100:
-            return await ctx.send(embed=error_embed("Minimum bet is 100 coins."), ephemeral=True)
-            
-        if bal < bet:
-            return await ctx.send(embed=error_embed("You don't have enough coins."), ephemeral=True)
+        if bet < 100: return await ctx.send(embed=error_embed("Minimum bet is 100 coins."), ephemeral=True)
+        if bal < bet: return await ctx.send(embed=error_embed("You don't have enough coins."), ephemeral=True)
 
         result = random.choice(["Heads", "Tails"])
         await db.add_coins(ctx.guild.id, ctx.author.id, -bet)
