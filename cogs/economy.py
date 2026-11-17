@@ -35,22 +35,31 @@ class Economy(commands.Cog):
         await ctx.send(embed=success_embed(f"You claimed your daily **{amount:,}** {EMOJI_COIN} coins!"))
 
     @commands.hybrid_command(name="cf", description="Flip a coin to double your money")
-    async def coinflip(self, ctx: commands.Context, amount: int):
-        if amount < 100:
+    async def coinflip(self, ctx: commands.Context, amount: str):
+        bal = await db.get_balance(ctx.guild.id, ctx.author.id)
+        
+        # Allow the user to type "all"
+        if amount.lower() == "all":
+            bet = bal
+        else:
+            try:
+                bet = int(amount)
+            except ValueError:
+                return await ctx.send(embed=error_embed("Please provide a valid number or type `all`."), ephemeral=True)
+
+        if bet < 100:
             return await ctx.send(embed=error_embed("Minimum bet is 100 coins."), ephemeral=True)
             
-        bal = await db.get_balance(ctx.guild.id, ctx.author.id)
-        if bal < amount:
+        if bal < bet:
             return await ctx.send(embed=error_embed("You don't have enough coins."), ephemeral=True)
 
         result = random.choice(["Heads", "Tails"])
-        
-        await db.add_coins(ctx.guild.id, ctx.author.id, -amount)
+        await db.add_coins(ctx.guild.id, ctx.author.id, -bet)
 
         if result == "Heads":
-            await db.add_coins(ctx.guild.id, ctx.author.id, amount * 2)
-            await ctx.send(embed=success_embed(f"🪙 The coin landed on **{result}**! You won `{amount:,}` coins!"))
+            await db.add_coins(ctx.guild.id, ctx.author.id, bet * 2)
+            await ctx.send(embed=success_embed(f"🪙 The coin landed on **{result}**! You won `{bet:,}` coins!"))
         else:
-            await ctx.send(embed=error_embed(f"🪙 The coin landed on **{result}**. You lost `{amount:,}` coins."))
+            await ctx.send(embed=error_embed(f"🪙 The coin landed on **{result}**. You lost `{bet:,}` coins."))
 
 async def setup(bot): await bot.add_cog(Economy(bot))
