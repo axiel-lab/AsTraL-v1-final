@@ -367,3 +367,15 @@ async def get_devlog_channel():
     return doc["channel_id"] if doc else None
 async def remove_devlog_channel(gid):
     await db.devlogs.delete_one({"guild_id": str(gid)})
+
+# Daily
+async def get_daily(gid, uid):
+    doc = await db.economy.find_one({"guild_id": str(gid), "user_id": str(uid)})
+    return doc.get("last_daily", 0) if doc else 0
+
+async def set_daily(gid, uid, timestamp):
+    await db.economy.update_one(
+        {"guild_id": str(gid), "user_id": str(uid)},
+        {"$set": {"last_daily": timestamp}},
+        upsert=True
+    )
