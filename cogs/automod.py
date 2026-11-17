@@ -7,6 +7,8 @@ import time
 from ui import success_embed, error_embed, main_embed
 from config import EMOJI_WARNING
 
+BAD_WORDS = ["dick", "bitch", "fuck", "shit", "asshole", "bastard"]
+
 class AutoMod(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -22,7 +24,6 @@ class AutoMod(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, msg):
-        # THIS IS WHY IT DOESN'T WORK FOR YOU: It ignores admins.
         if msg.author.bot or not msg.guild or msg.author.guild_permissions.administrator:
             return
 
@@ -32,8 +33,14 @@ class AutoMod(commands.Cog):
         log_id, anti_invite, anti_spam, anti_caps, anti_links = config
         reason = None
         now = time.time()
+        content_lower = msg.content.lower()
 
-        if anti_spam:
+        for word in BAD_WORDS:
+            if re.search(r'\b' + re.escape(word) + r'\b', content_lower):
+                reason = "Inappropriate language."
+                break
+
+        if not reason and anti_spam:
             uid = str(msg.author.id)
             if uid not in self.spam_cache: self.spam_cache[uid] = []
             self.spam_cache[uid] = [t for t in self.spam_cache[uid] if now - t < 5]
@@ -43,14 +50,15 @@ class AutoMod(commands.Cog):
                 self.spam_cache[uid] = []
 
         if not reason and anti_invite and self.invite_regex.search(msg.content):
-            reason = "Posting a Discord invite."
+            reason = "Posting an invite."
         if not reason and anti_links and self.link_regex.search(msg.content):
-            reason = "Posting unauthorized links."
+            reason = "Posting links."
         if not reason and anti_caps and len(msg.content) > 10:
             caps = sum(1 for c in msg.content if c.isupper())
-            if (caps / len(msg.content)) > 0.7: reason = "Excessive caps."
+            if (caps / len(msg.content)) > 0.7: 
+                reason = "Excessive caps."
         if not reason and len(msg.mentions) > 5:
-            reason = "Mass mentioning users."
+            reason = "Mass mentioning."
 
         if reason:
             try: await msg.delete()
