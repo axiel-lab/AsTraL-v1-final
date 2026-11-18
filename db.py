@@ -388,5 +388,17 @@ async def set_daily(gid, uid, timestamp):
     await db.economy.update_one(
         {"guild_id": str(gid), "user_id": str(uid)},
         {"$set": {"last_daily": timestamp}},
+
+        # Leveling Config
+async def set_level_channel(gid, cid):
+    await db.levels_config.update_one(
+        {"guild_id": str(gid)}, 
+        {"$set": {"channel_id": str(cid) if cid else None}}, 
+        upsert=True
+    )
+
+async def get_level_channel(gid):
+    doc = await db.levels_config.find_one({"guild_id": str(gid)})
+    return doc["channel_id"] if doc and doc.get("channel_id") else None
         upsert=True
     )
