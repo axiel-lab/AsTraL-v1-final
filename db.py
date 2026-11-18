@@ -69,12 +69,23 @@ async def get_sticky(cid):
     if doc: return (doc["message_id"], doc["content"])
     return None
 
-# Welcome
-async def set_welcome(gid, cid, msg, rid):
-    await db.welcome_config.update_one({"guild_id": str(gid)}, {"$set": {"channel_id": str(cid), "message": msg, "role_id": str(rid) if rid else None}}, upsert=True)
+# Welcome System
+async def set_welcome(gid, cid, title, desc, image_url):
+    await db.welcome_config.update_one(
+        {"guild_id": str(gid)},
+        {"$set": {
+            "channel_id": str(cid), 
+            "title": title, 
+            "description": desc, 
+            "image_url": image_url
+        }},
+        upsert=True
+    )
+
 async def get_welcome(gid):
     doc = await db.welcome_config.find_one({"guild_id": str(gid)})
-    if doc: return (doc["channel_id"], doc["message"], doc.get("role_id"))
+    if doc:
+        return doc["channel_id"], doc["title"], doc["description"], doc.get("image_url")
     return None
 
 # Giveaways
