@@ -5,10 +5,21 @@ import db
 import time
 import random
 import math
-from config import THEME_COLOR, EMOJI_STAR, EMOJI_WARNING
+from config import THEME_COLOR, EMOJI_STAR, EMOJI_GEAR
+from ui import success_embed, error_embed, main_embed
 
 class Leveling(commands.Cog):
     def __init__(self, bot): self.bot = bot
+
+    @commands.hybrid_command(name="set_level_channel", description="Set a specific channel for level-up messages")
+    @commands.has_permissions(administrator=True)
+    async def set_level_channel(self, ctx: commands.Context, channel: discord.TextChannel = None):
+        if not channel:
+            await db.set_level_channel(ctx.guild.id, None)
+            return await ctx.send(embed=success_embed("Level-up notifications have been disabled."))
+            
+        await db.set_level_channel(ctx.guild.id, channel.id)
+        await ctx.send(embed=success_embed(f"Level-up notifications will now be sent to {channel.mention}."))
 
     @commands.Cog.listener()
     async def on_message(self, msg):
@@ -18,6 +29,7 @@ class Leveling(commands.Cog):
         now = int(time.time())
         xp, level, last_msg = await db.get_level_data(gid, uid)
         
+        # 60 second cooldown for XP
         if now - last_msg < 60: return
 
         gained_xp = random.randint(15, 25)
@@ -27,27 +39,36 @@ class Leveling(commands.Cog):
         await db.update_level_data(gid, uid, new_xp, new_level, now)
 
         if new_level > level:
-            await msg.channel.send(embed=discord.Embed(description=f"{EMOJI_STAR} {msg.author.mention} leveled up to **Level {new_level}**!", color=THEME_COLOR))
+            embed = main_embed(f"{EMOJI_STAR} Level Up!", f"{msg.author.mention} has reached **Level {new_level}**!")
+            
+            # Check if a specific channel is set
+            level_chan_id = await db.get_level_channel(gid)
+            if level_chan_id:
+                channel = msg.guild.get_channel(int(level_chan_id))
+                if channel:
+                    await channel.send(embed=embed)
+            else:
+                # If no channel is set, send it in the current chat
+                await msg.channel.send(embed=embed)
 
-    @app_commands.command(name="rank", description="Check your level and XP")
-    async def rank(self, interaction: discord.Interaction, member: discord.Member = None):
-        member = member or interaction.user
-        xp, level, _ = await db.get_level_data(interaction.guild.id, member.id)
+    @commands.hybrid_command(name="rank", description="Check your level and XP")
+    async def rank(self, ctx: commands.Context, member: discord.Member = None):
+        member = member or ctx.author
+        xp, level, _ = await db.get_level_data(ctx.guild.id, member.id)
         next_level_xp = ((level + 1) ** 2) * 100
         
-        embed = discord.Embed(title=f"{EMOJI_STAR} {member.name}'s Rank", color=THEME_COLOR)
-        embed.add_field(name="Level", value=f"`{level}`", inline=True)
-        embed.add_field(name="XP", value=f"`{xp} / {next_level_xp}`", inline=True)
+        embed = main_embed(f"{EMOJI_STAR} {member.name}'s Rank", f"**Level:** `{level}`\n**XP:** `{xp} / {next_level_xp}`")
         embed.set_thumbnail(url=member.display_avatar.url)
-        await interaction.response.send_message(embed=embed)
+        await ctx.send(embed=embed)
 
-    @app_commands.command(name="leaderboard", description="Top 10 most active users")
-    async def leaderboard(self, interaction: discord.Interaction):
-        rows = await db.get_top_levels(interaction.guild.id)
-        if not rows: return await interaction.response.send_message(embed=discord.Embed(description="No data yet.", color=THEME_COLOR), ephemeral=True)
+    @commands.hybrid_command(name="leaderboard", description="Top 10 most active users")
+    async def leaderboard(self, ctx: commands.Context):
+        rows = await db.get_top_levels(ctx.guild.id)
+        if not rows: 
+            return await ctx.send(embed=error_embed("No data yet."), ephemeral=True)
 
         desc = "".join(f"**{i}.** <@{uid}> - Level `{level}` ({xp} XP)\n" for i, (uid, xp, level) in enumerate(rows, 1))
-        embed = discord.Embed(title=f"{EMOJI_STAR} Leaderboard", description=desc, color=THEME_COLOR)
-        await interaction.response.send_message(embed=embed)
+        embed = main_embed(f"{EMOJI_STAR} Leaderboard", desc)
+        await ctx.send(embed=embed)
 
 async def setup(bot): await bot.add_cog(Leveling(bot))
