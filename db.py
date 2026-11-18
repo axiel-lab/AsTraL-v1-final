@@ -27,6 +27,7 @@ async def init():
     await db.honeypot_config.create_index([("guild_id", 1)], unique=True)
     await db.weather_config.create_index([("guild_id", 1), ("city", 1)], unique=True)
     await db.rings.create_index([("guild_id", 1), ("user_id", 1)], unique=True)
+    await db.levels_config.create_index([("guild_id", 1)], unique=True)
 
 # Commands
 async def save(gid, name, response, uid):
@@ -96,23 +97,57 @@ async def get_giveaways():
     return [(doc["message_id"], doc["channel_id"], doc["prize"], doc["end_time"], doc["host_id"], doc["winners"]) async for doc in cursor]
 async def remove_giveaway(mid):
     await db.giveaways.delete_one({"message_id": str(mid)})
-
-# Levels & Economy
+# --- Levels & Economy ---
 async def get_level_data(gid, uid):
     doc = await db.levels.find_one({"guild_id": str(gid), "user_id": str(uid)})
     if doc: return (doc["xp"], doc["level"], doc["last_msg"])
     return (0, 0, 0)
+
 async def update_level_data(gid, uid, xp, lvl, last):
-    await db.levels.update_one({"guild_id": str(gid), "user_id": str(uid)}, {"$set": {"xp": xp, "level": lvl, "last_msg": last}}, upsert=True)
+    await db.levels.update_one(
+        {"guild_id": str(gid), "user_id": str(uid)}, 
+        {"$set": {"xp": xp, "level": lvl, "last_msg": last}}, 
+        upsert=True
+    )
+
 async def get_top_levels(gid):
     cursor = db.levels.find({"guild_id": str(gid)}).sort("xp", -1).limit(10)
     return [(doc["user_id"], doc["xp"], doc["level"]) async for doc in cursor]
+
 async def add_coins(gid, uid, amount):
-    await db.economy.update_one({"guild_id": str(gid), "user_id": str(uid)}, {"$inc": {"balance": amount}}, upsert=True)
+    await db.economy.update_one(
+        {"guild_id": str(gid), "user_id": str(uid)}, 
+        {"$inc": {"balance": amount}}, 
+        upsert=True
+    )
+
 async def get_balance(gid, uid):
     doc = await db.economy.find_one({"guild_id": str(gid), "user_id": str(uid)})
     return doc["balance"] if doc else 0
 
+async def get_daily(gid, uid):
+    doc = await db.economy.find_one({"guild_id": str(gid), "user_id": str(uid)})
+    return doc.get("last_daily", 0) if doc else 0
+
+async def set_daily(gid, uid, timestamp):
+    await db.economy.update_one(
+        {"guild_id": str(gid), "user_id": str(uid)},
+        {"$set": {"last_daily": timestamp}},
+        upsert=True
+    )
+
+# --- Leveling Channel Config ---
+async def set_level_channel(gid, cid):
+    await db.levels_config.update_one(
+        {"guild_id": str(gid)}, 
+        {"$set": {"channel_id": str(cid) if cid else None}}, 
+        upsert=True
+    )
+
+async def get_level_channel(gid):
+    doc = await db.levels_config.find_one({"guild_id": str(gid)})
+    return doc["channel_id"] if doc and doc.get("channel_id") else None
+    
 # Button Roles
 async def add_button_role(mid, rid, emoji, label):
     await db.button_roles.update_one({"message_id": str(mid), "role_id": str(rid)}, {"$set": {"emoji": emoji, "label": label}}, upsert=True)
@@ -389,16 +424,4 @@ async def set_daily(gid, uid, timestamp):
         {"guild_id": str(gid), "user_id": str(uid)},
         {"$set": {"last_daily": timestamp}},
 
-        # Leveling Config
-async def set_level_channel(gid, cid):
-    await db.levels_config.update_one(
-        {"guild_id": str(gid)}, 
-        {"$set": {"channel_id": str(cid) if cid else None}}, 
-        upsert=True
-    )
-
-async def get_level_channel(gid):
-    doc = await db.levels_config.find_one({"guild_id": str(gid)})
-    return doc["channel_id"] if doc and doc.get("channel_id") else None
-        upsert=True
-    )
+     
