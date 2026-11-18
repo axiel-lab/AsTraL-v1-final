@@ -44,21 +44,28 @@ async def list_all(gid):
     cursor = db.custom_commands.find({"guild_id": str(gid)}).sort("name", 1)
     return [(doc["name"], doc["response"]) async for doc in cursor]
 
-# Tickets
-async def set_ticket_config(gid, cat, role, log):
-    await db.ticket_config.update_one({"guild_id": str(gid)}, {"$set": {"category_id": str(cat), "staff_role_id": str(role), "log_channel_id": str(log)}}, upsert=True)
-async def get_ticket_config(gid):
-    doc = await db.ticket_config.find_one({"guild_id": str(gid)})
+# Tickets (Multi-Panel)
+async def set_ticket_config(gid, panel_name, cat, role, log):
+    await db.ticket_panels.update_one(
+        {"guild_id": str(gid), "panel_name": panel_name.lower()},
+        {"$set": {"category_id": str(cat), "staff_role_id": str(role), "log_channel_id": str(log)}},
+        upsert=True
+    )
+
+async def get_ticket_config(gid, panel_name):
+    doc = await db.ticket_panels.find_one({"guild_id": str(gid), "panel_name": panel_name.lower()})
     if doc: return (doc["category_id"], doc["staff_role_id"], doc["log_channel_id"])
     return None
+
 async def add_ticket(cid, gid, uid):
     await db.tickets.update_one({"channel_id": str(cid)}, {"$set": {"guild_id": str(gid), "user_id": str(uid)}}, upsert=True)
+
 async def get_user_ticket(gid, uid):
     doc = await db.tickets.find_one({"guild_id": str(gid), "user_id": str(uid)})
     return doc["channel_id"] if doc else None
+
 async def remove_ticket(cid):
     await db.tickets.delete_one({"channel_id": str(cid)})
-
 # Nicknames
 async def set_nickname_channel(gid, cid, note):
     await db.nickname_config.update_one({"guild_id": str(gid)}, {"$set": {"channel_id": str(cid), "note_text": note}}, upsert=True)
