@@ -20,7 +20,7 @@ async def get_prefix(bot, message):
     except:
         return "!"
 
-bot = commands.Bot(command_prefix=get_prefix, intents=intents)
+bot = commands.Bot(command_prefix=get_prefix, intents=intents, help_command=None)
 
 statuses = [
     discord.Activity(type=discord.ActivityType.watching, name="over the server"),
