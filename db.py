@@ -319,6 +319,12 @@ async def remove_weather_config(gid, city):
     await db.weather_config.delete_one({"guild_id": str(gid), "city": city.lower()})
 async def remove_all_weather(gid):
     await db.weather_config.delete_many({"guild_id": str(gid)})
+async def set_weather_message(gid, cid, city, mid):
+    await db.weather_config.update_one(
+        {"guild_id": str(gid), "city": city.lower()},
+        {"$set": {"channel_id": str(cid), "message_id": str(mid)}},
+        upsert=True
+    )
 
 # Marriage & Rings
 async def get_marriage(gid, uid):
@@ -393,3 +399,21 @@ async def get_devlog_channel():
     return doc["channel_id"] if doc else None
 async def remove_devlog_channel(gid):
     await db.devlogs.delete_one({"guild_id": str(gid)})
+
+# --- Temp Voice ---
+async def set_temp_hub(gid, cid):
+    await db.temp_voice_hub.update_one({"guild_id": str(gid)}, {"$set": {"channel_id": str(cid)}}, upsert=True)
+async def get_temp_hub(gid):
+    doc = await db.temp_voice_hub.find_one({"guild_id": str(gid)})
+    return doc["channel_id"] if doc else None
+async def add_temp_channel(cid, uid):
+    await db.temp_voice_channels.update_one({"channel_id": str(cid)}, {"$set": {"owner_id": str(uid)}}, upsert=True)
+async def get_temp_channel(cid):
+    doc = await db.temp_voice_channels.find_one({"channel_id": str(cid)})
+    return doc["owner_id"] if doc else None
+async def remove_temp_channel(cid):
+    await db.temp_voice_channels.delete_one({"channel_id": str(cid)})
+async def update_temp_owner(cid, new_owner):
+    await db.temp_voice_channels.update_one({"channel_id": str(cid)}, {"$set": {"owner_id": str(new_owner)}})
+async def clean_vc(cid):
+    await db.temp_voice_channels.delete_one({"channel_id": str(cid)})
