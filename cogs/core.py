@@ -24,23 +24,23 @@ class HelpSelect(discord.ui.Select):
             embed.description = "Welcome to the help menu. Use the dropdown below to explore my commands."
             embed.add_field(name="Ping", value=f"`{round(self.bot.latency * 1000)}ms`", inline=True)
             embed.add_field(name="Servers", value=f"`{len(self.bot.guilds)}`", inline=True)
-            embed.add_field(name="Commands", value=f"`{len(self.bot.tree.get_commands())}` Slash Commands", inline=True)
+            embed.add_field(name="Commands", value=f"`{len(self.bot.tree.get_commands())}` Commands", inline=True)
             embed.set_thumbnail(url=self.bot.user.display_avatar.url)
         elif self.values[0] == "Admin & Config":
             embed.title = f"{EMOJI_GEAR} Admin & Config"
-            embed.description = "`/set_prefix` • `/setup_devlogs` • `/ticket_setup` • `/buttonrole` • `/setup_honeypot` • `/welcome` • `/automod` • `/logging` • `/setup_weather`"
+            embed.description = "`/set_prefix` • `/setup_devlogs` • `/ticket_setup` • `/buttonrole` • `/setup_honeypot` • `/setup_welcome` • `/automod` • `/logging` • `/setup_weather`"
         elif self.values[0] == "Moderation":
             embed.title = f"{EMOJI_BAN} Moderation"
             embed.description = "`/ban` • `/kick` • `/purge` • `/warn` • `/warnings` • `/lock` • `/unlock` • `/temprole` • `/note`"
         elif self.values[0] == "Community":
             embed.title = f"{EMOJI_HEART} Community"
-            embed.description = "`/rank` • `/leaderboard` • `/marry` • `/divorce` • `/couple` • `/shop` • `/daily` • `/balance` • `/set_birthday` • `/suggest` • `/highlight` • `/afk`"
+            embed.description = "`/rank` • `/leaderboard` • `/marry` • `/divorce` • `/couple` • `/shop` • `/daily` • `/cash` • `/set_birthday` • `/suggest` • `/highlight` • `/afk`"
         elif self.values[0] == "Utility":
             embed.title = f"{EMOJI_COIN} Utility"
-            embed.description = "`/userinfo` • `/serverinfo` • `/avatar` • `/remind` • `/translate` • `/snipe` • `/ping`"
+            embed.description = "`/userinfo` • `/serverinfo` • `/avatar` • `/remind` • `/translate` • `/snipe` • `/ping` • `/botinfo`"
         elif self.values[0] == "Fun & Games":
             embed.title = f"{EMOJI_STAR} Fun & Games"
-            embed.description = "`/gstart` • `/poll` • `/tictactoe` • `/slots` • `/cf` • `/8ball` • `/roll` • `/imagine` • `/hug` • `/slap` • `/kiss` • `/quote`"
+            embed.description = "`/gstart` • `/poll` • `/tictactoe` • `/slots` • `/cf` • `/8ball` • `/coinflip` • `/roll` • `/imagine` • `/hug` • `/slap` • `/kiss` • `/quote`"
 
         await interaction.response.edit_message(embed=embed)
 
@@ -50,8 +50,7 @@ class HelpView(discord.ui.View):
         self.add_item(HelpSelect(bot))
 
 class Core(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
+    def __init__(self, bot): self.bot = bot
 
     @commands.hybrid_command(name="help", description="View all bot commands")
     async def help(self, ctx: commands.Context):
@@ -62,10 +61,12 @@ class Core(commands.Cog):
         )
         embed.add_field(name="Ping", value=f"`{round(self.bot.latency * 1000)}ms`", inline=True)
         embed.add_field(name="Servers", value=f"`{len(self.bot.guilds)}`", inline=True)
-        embed.add_field(name="Commands", value=f"`{len(self.bot.tree.get_commands())}` Slash Commands", inline=True)
+        embed.add_field(name="Commands", value=f"`{len(self.bot.tree.get_commands())}` Commands", inline=True)
         embed.set_thumbnail(url=self.bot.user.display_avatar.url)
         
-        await ctx.send(embed=embed, view=HelpView(self.bot), ephemeral=True)
+        if ctx.interaction:
+            await ctx.send(embed=embed, view=HelpView(self.bot), ephemeral=True)
+        else:
+            await ctx.send(embed=embed, view=HelpView(self.bot))
 
-async def setup(bot):
-    await bot.add_cog(Core(bot))
+async def setup(bot): await bot.add_cog(Core(bot))
