@@ -31,8 +31,10 @@ async def init():
     await db.economy.create_index([("guild_id", 1), ("user_id", 1)], unique=True)
     await db.devlogs.create_index([("guild_id", 1)], unique=True)
     await db.prefixes.create_index([("guild_id", 1)], unique=True)
+    await db.ticket_panels.create_index([("guild_id", 1), ("panel_name", 1)], unique=True)
+    await db.temp_voice_hub.create_index([("guild_id", 1)], unique=True)
 
-# Commands
+# Custom Commands
 async def save(gid, name, response, uid):
     await db.custom_commands.update_one({"guild_id": str(gid), "name": name}, {"$set": {"response": response, "created_by": str(uid)}}, upsert=True)
 async def get(gid, name):
@@ -44,28 +46,25 @@ async def list_all(gid):
     cursor = db.custom_commands.find({"guild_id": str(gid)}).sort("name", 1)
     return [(doc["name"], doc["response"]) async for doc in cursor]
 
-# Tickets (Multi-Panel)
+# Tickets
 async def set_ticket_config(gid, panel_name, cat, role, log):
     await db.ticket_panels.update_one(
         {"guild_id": str(gid), "panel_name": panel_name.lower()},
         {"$set": {"category_id": str(cat), "staff_role_id": str(role), "log_channel_id": str(log)}},
         upsert=True
     )
-
 async def get_ticket_config(gid, panel_name):
     doc = await db.ticket_panels.find_one({"guild_id": str(gid), "panel_name": panel_name.lower()})
     if doc: return (doc["category_id"], doc["staff_role_id"], doc["log_channel_id"])
     return None
-
 async def add_ticket(cid, gid, uid):
     await db.tickets.update_one({"channel_id": str(cid)}, {"$set": {"guild_id": str(gid), "user_id": str(uid)}}, upsert=True)
-
 async def get_user_ticket(gid, uid):
     doc = await db.tickets.find_one({"guild_id": str(gid), "user_id": str(uid)})
     return doc["channel_id"] if doc else None
-
 async def remove_ticket(cid):
     await db.tickets.delete_one({"channel_id": str(cid)})
+
 # Nicknames
 async def set_nickname_channel(gid, cid, note):
     await db.nickname_config.update_one({"guild_id": str(gid)}, {"$set": {"channel_id": str(cid), "note_text": note}}, upsert=True)
@@ -89,8 +88,7 @@ async def set_welcome(gid, cid, title, desc, image_url):
     )
 async def get_welcome(gid):
     doc = await db.welcome_config.find_one({"guild_id": str(gid)})
-    if doc:
-        return doc["channel_id"], doc["title"], doc["description"], doc.get("image_url")
+    if doc: return doc["channel_id"], doc["title"], doc["description"], doc.get("image_url")
     return None
 
 # Giveaways
@@ -117,25 +115,19 @@ async def add_coins(gid, uid, amount):
 async def get_balance(gid, uid):
     doc = await db.economy.find_one({"guild_id": str(gid), "user_id": str(uid)})
     return doc["balance"] if doc else 0
-
-# Daily
 async def get_daily(gid, uid):
     doc = await db.economy.find_one({"guild_id": str(gid), "user_id": str(uid)})
     return doc.get("last_daily", 0) if doc else 0
 async def set_daily(gid, uid, timestamp):
-    await db.economy.update_one(
-        {"guild_id": str(gid), "user_id": str(uid)},
-        {"$set": {"last_daily": timestamp}},
-        upsert=True
-    )
+    await db.economy.update_one({"guild_id": str(gid), "user_id": str(uid)}, {"$set": {"last_daily": timestamp}}, upsert=True)
 
-# Leveling Channel Config
+# Level Config
 async def set_level_channel(gid, cid):
     await db.levels_config.update_one({"guild_id": str(gid)}, {"$set": {"channel_id": str(cid) if cid else None}}, upsert=True)
 async def get_level_channel(gid):
     doc = await db.levels_config.find_one({"guild_id": str(gid)})
     return doc["channel_id"] if doc and doc.get("channel_id") else None
-    
+
 # Button Roles
 async def add_button_role(mid, rid, emoji, label):
     await db.button_roles.update_one({"message_id": str(mid), "role_id": str(rid)}, {"$set": {"emoji": emoji, "label": label}}, upsert=True)
@@ -180,16 +172,15 @@ async def add_temp_channel(cid, uid):
 async def get_temp_channel(cid):
     doc = await db.temp_voice_channels.find_one({"channel_id": str(cid)})
     return doc["owner_id"] if doc else None
-async def remove_temp_channel(cid):
-    await db.temp_voice_channels.delete_one({"channel_id": str(cid)})
-async def add_trusted(cid, uid):
-    await db.temp_voice_channels.update_one({"channel_id": str(cid)}, {"$addToSet": {"trusted": str(uid)}})
-async def add_blocked(cid, uid):
-    await db.temp_voice_channels.update_one({"channel_id": str(cid)}, {"$addToSet": {"blocked": str(uid)}})
 async def update_temp_owner(cid, new_owner):
     await db.temp_voice_channels.update_one({"channel_id": str(cid)}, {"$set": {"owner_id": str(new_owner)}})
 async def clean_vc(cid):
     await db.temp_voice_channels.delete_one({"channel_id": str(cid)})
+async def set_temp_voice_name(cid, name):
+    await db.temp_voice_channels.update_one({"channel_id": str(cid)}, {"$set": {"custom_name": name}}, upsert=True)
+async def get_temp_voice_name(cid):
+    doc = await db.temp_voice_channels.find_one({"channel_id": str(cid)})
+    return doc.get("custom_name") if doc else None
 
 # Starboard
 async def set_starboard(gid, cid):
@@ -314,7 +305,7 @@ async def set_weather_config(gid, cid, city):
     await db.weather_config.update_one({"guild_id": str(gid), "city": city.lower()}, {"$set": {"channel_id": str(cid), "city": city.lower()}}, upsert=True)
 async def get_weather_configs():
     cursor = db.weather_config.find({})
-    return [(doc["guild_id"], doc["channel_id"], doc["city"]) async for doc in cursor]
+    return [(doc["guild_id"], doc["channel_id"], doc["city"], doc.get("message_id")) async for doc in cursor]
 async def remove_weather_config(gid, city):
     await db.weather_config.delete_one({"guild_id": str(gid), "city": city.lower()})
 async def remove_all_weather(gid):
@@ -399,21 +390,3 @@ async def get_devlog_channel():
     return doc["channel_id"] if doc else None
 async def remove_devlog_channel(gid):
     await db.devlogs.delete_one({"guild_id": str(gid)})
-
-# --- Temp Voice ---
-async def set_temp_hub(gid, cid):
-    await db.temp_voice_hub.update_one({"guild_id": str(gid)}, {"$set": {"channel_id": str(cid)}}, upsert=True)
-async def get_temp_hub(gid):
-    doc = await db.temp_voice_hub.find_one({"guild_id": str(gid)})
-    return doc["channel_id"] if doc else None
-async def add_temp_channel(cid, uid):
-    await db.temp_voice_channels.update_one({"channel_id": str(cid)}, {"$set": {"owner_id": str(uid)}}, upsert=True)
-async def get_temp_channel(cid):
-    doc = await db.temp_voice_channels.find_one({"channel_id": str(cid)})
-    return doc["owner_id"] if doc else None
-async def remove_temp_channel(cid):
-    await db.temp_voice_channels.delete_one({"channel_id": str(cid)})
-async def update_temp_owner(cid, new_owner):
-    await db.temp_voice_channels.update_one({"channel_id": str(cid)}, {"$set": {"owner_id": str(new_owner)}})
-async def clean_vc(cid):
-    await db.temp_voice_channels.delete_one({"channel_id": str(cid)})
