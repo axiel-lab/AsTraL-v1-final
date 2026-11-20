@@ -4,12 +4,12 @@ import db
 from config import EMOJI_LOCK, EMOJI_UNLOCK, EMOJI_TRASH, EMOJI_VOICE, EMOJI_HEART, EMOJI_SUCCESS, EMOJI_ERROR, EMOJI_GEAR, EMOJI_WARNING
 from ui import success_embed, error_embed, main_embed
 
-# --- Modals ---
 class RenameModal(discord.ui.Modal, title="Rename Channel"):
     name = discord.ui.TextInput(label="New Name", placeholder="Enter new channel name...", max_length=100)
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.channel.edit(name=self.name.value)
-        await interaction.response.send_message(embed=success_embed("Channel renamed."), ephemeral=True)
+        await db.set_temp_voice_name(interaction.channel.id, self.name.value)
+        await interaction.response.send_message(embed=success_embed("Channel renamed and saved."), ephemeral=True)
 
 class LimitModal(discord.ui.Modal, title="Set User Limit"):
     limit = discord.ui.TextInput(label="User Limit (0-99)", placeholder="0 for unlimited", max_length=2)
@@ -21,7 +21,6 @@ class LimitModal(discord.ui.Modal, title="Set User Limit"):
         except ValueError:
             await interaction.response.send_message(embed=error_embed("Invalid number."), ephemeral=True)
 
-# --- Select Menus ---
 class TrustSelect(discord.ui.View):
     def __init__(self, vc_id):
         super().__init__(timeout=60)
@@ -73,7 +72,6 @@ class TransferSelect(discord.ui.View):
         await vc.set_permissions(user, manage_channels=True, connect=True, move_members=True)
         await interaction.response.edit_message(embed=success_embed(f"Transferred ownership to {user.mention}."), view=None)
 
-# --- Main Control Panel (Inside VC Chat) ---
 class VoiceControl(discord.ui.View):
     def __init__(self): super().__init__(timeout=None)
 
@@ -160,15 +158,16 @@ class VoiceControl(discord.ui.View):
         await interaction.response.send_message(embed=success_embed("Deleting channel..."), ephemeral=True)
         await vc.delete()
 
-# --- Setup & Listener ---
 class TempVoice(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.bot.add_view(VoiceControl())
 
     @commands.hybrid_command(name="setup_tempvoice", description="Setup the join-to-create hub")
-    @commands.has_permissions(administrator=True)
     async def setup_tempvoice(self, ctx: commands.Context, channel: discord.VoiceChannel):
+        if not ctx.author.guild_permissions.administrator:
+            return await ctx.send(embed=error_embed("You need Administrator permission to use this."), ephemeral=True)
+
         await db.set_temp_hub(ctx.guild.id, channel.id)
         embed = main_embed(f"{EMOJI_VOICE} Voice Hub Configured", f"Users who join **{channel.name}** will get their own temporary voice channel.\n\n**Features:** Lock, Unlock, Rename, Limit, Claim, Trust, Block, Kick, Transfer, Delete.")
         await ctx.send(embed=success_embed(f"Setup complete! {channel.mention} is now the hub."))
@@ -177,7 +176,6 @@ class TempVoice(commands.Cog):
     async def on_voice_state_update(self, member, before, after):
         if member.bot: return
 
-        # User joined the hub
         if after.channel:
             hub_id = await db.get_temp_hub(member.guild.id)
             if hub_id and str(after.channel.id) == str(hub_id):
@@ -186,26 +184,23 @@ class TempVoice(commands.Cog):
                     guild.default_role: discord.PermissionOverwrite(connect=True),
                     member: discord.PermissionOverwrite(manage_channels=True, connect=True, move_members=True)
                 }
-                chan = await guild.create_voice_channel(name=f"{member.name}'s channel", category=after.channel.category, overwrites=overwrites)
+                saved_name = await db.get_temp_voice_name(after.channel.id)
+                chan_name = saved_name if saved_name else f"{member.name}'s channel"
+                
+                chan = await guild.create_voice_channel(name=chan_name, category=after.channel.category, overwrites=overwrites)
                 await db.add_temp_channel(chan.id, member.id)
                 await member.move_to(chan)
                 
-                # Send the permanent control panel
                 embed = main_embed(f"{EMOJI_GEAR} Voice Control Center", "Manage your private channel using the buttons below.")
                 await chan.send(embed=embed, view=VoiceControl())
 
-        # User left a channel
         if before.channel:
             owner = await db.get_temp_channel(before.channel.id)
             if owner and len(before.channel.members) == 0:
-                try: 
-                    await before.channel.delete()
-                except: 
-                    pass
-                finally: 
-                    await db.clean_vc(before.channel.id)
+                try: await before.channel.delete()
+                except: pass
+                finally: await db.clean_vc(before.channel.id)
             
-            # If the owner leaves but others remain, send a claim message
             elif owner and str(member.id) == owner and len(before.channel.members) > 0:
                 try:
                     await before.channel.send(embed=main_embed(f"{EMOJI_WARNING} Owner Left", "The owner has left the channel. Click **Claim** below to become the new owner."), view=VoiceControl())
