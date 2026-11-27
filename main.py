@@ -13,12 +13,12 @@ intents.members = True
 
 async def get_prefix(bot, message):
     if not message.guild: 
-        return "!"
+        return ["!", "$"]
     try:
         p = await db.get_prefix(message.guild.id)
-        return p if p else "!"
+        return [p, "$"] if p else ["!", "$"]
     except:
-        return "!"
+        return ["!", "$"]
 
 bot = commands.Bot(command_prefix=get_prefix, intents=intents, help_command=None)
 
