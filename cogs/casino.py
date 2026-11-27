@@ -123,6 +123,31 @@ class Casino(commands.Cog):
     def __init__(self, bot): 
         self.bot = bot
 
+    # Add this import and function at the top
+from config import THEME_COLOR, EMOJI_COIN
+from ui import success_embed, error_embed, main_embed
+
+def is_economy_prefix():
+    async def predicate(ctx):
+        if ctx.interaction: return True
+        return ctx.prefix == "$"
+    return commands.check(predicate)
+
+# Then add the decorator to the casino commands:
+class Casino(commands.Cog):
+    # ...
+    @commands.hybrid_command(name="slots", aliases=["slot"], description="Play animated slots")
+    @is_economy_prefix()
+    @commands.cooldown(1, 10, commands.BucketType.user)
+    async def slots(self, ctx: commands.Context, amount: int):
+        # ...
+
+    @commands.hybrid_command(name="blackjack", aliases=["bj"], description="Play Mega Blackjack")
+    @is_economy_prefix()
+    @commands.cooldown(1, 10, commands.BucketType.user)
+    async def blackjack(self, ctx: commands.Context, amount: int):
+        # ...
+        
     @commands.hybrid_command(name="slots", aliases=["slot"], description="Play animated slots")
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def slots(self, ctx: commands.Context, amount: int):
